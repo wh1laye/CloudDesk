@@ -6,6 +6,7 @@ license = "MIT"
 description = "clouddesk per-user installer"
 
 [dependencies]
+clouddesk-ui = { path = "../ui" }
 windows-sys = { version = "0.59", features = [
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
