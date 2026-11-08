@@ -1,6 +1,3 @@
-mod font;
-mod gui;
-
 use std::cell::RefCell;
 use std::env;
 use std::fs;
@@ -516,6 +513,10 @@ fn uninstall(o: &Opts, log: &Log) -> Result<(), String> {
     }
 
     log.say(&format!("uninstall: {}", dir.display()));
+    let host = dir.join(MAIN_EXE);
+    if host.is_file() {
+        let _ = Command::new(&host).arg("--restore").status();
+    }
     let _ = Command::new("taskkill")
         .args(["/im", MAIN_EXE, "/f", "/t"])
         .output();
@@ -562,19 +563,9 @@ fn run() -> Result<(), String> {
 }
 
 fn main() {
-    let code = if env::args().len() == 1 {
-        match gui::run() {
-            Ok(()) => 0,
-            Err(e) => {
-                eprintln!("error: {e}");
-                1
-            }
-        }
-    } else {
-        match run() {
-            Ok(()) => 0,
-            Err(_) => 1,
-        }
+    let code = match run() {
+        Ok(()) => 0,
+        Err(_) => 1,
     };
     std::process::exit(code);
 }
