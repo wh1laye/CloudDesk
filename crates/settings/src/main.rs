@@ -248,7 +248,7 @@ unsafe fn draw(c: &Ctx, s: &St) {
                 );
             }
             if !s.cfg.comps[4] {
-                text(c, "COLORS SWITCH IS OFF", 60, 380, 3, c.dim);
+                text(c, "COLORS SWITCH IS OFF", 60, 430, 3, c.dim);
             }
         }
         _ => {

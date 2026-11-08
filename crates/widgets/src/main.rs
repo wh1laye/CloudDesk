@@ -14,8 +14,11 @@ use clouddesk_ui::gfx::{dot, paint, palette, pill, text, Ctx, Palette};
 use clouddesk_ui::{create, init_dpi, now, pump, register, wide};
 use windows_sys::Win32::Foundation::{CloseHandle, FILETIME, HWND, LPARAM, LRESULT, WPARAM};
 use windows_sys::Win32::Graphics::Gdi::{CreateRoundRectRgn, InvalidateRect, SetWindowRgn};
+use windows_sys::Win32::Storage::FileSystem::GetDiskFreeSpaceExW;
 use windows_sys::Win32::System::Power::{GetSystemPowerStatus, SYSTEM_POWER_STATUS};
-use windows_sys::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
+use windows_sys::Win32::System::SystemInformation::{
+    GetTickCount64, GlobalMemoryStatusEx, MEMORYSTATUSEX,
+};
 use windows_sys::Win32::System::Threading::{
     GetSystemTimes, OpenProcess, WaitForSingleObject, PROCESS_SYNCHRONIZE,
 };
@@ -44,6 +47,9 @@ enum Kind {
     Battery,
     Memory,
     Cpu,
+    Date,
+    Uptime,
+    Disk,
 }
 
 struct Widget {
@@ -119,13 +125,16 @@ fn parse(path: &Path) -> Option<Widget> {
         "battery" => Kind::Battery,
         "memory" => Kind::Memory,
         "cpu" => Kind::Cpu,
+        "date" => Kind::Date,
+        "uptime" => Kind::Uptime,
+        "disk" => Kind::Disk,
         _ => return None,
     };
     let system = m
         .get("permissions")
         .map(|p| p.split(',').any(|x| x.trim() == "system"))
         .unwrap_or(false);
-    if matches!(kind, Kind::Battery | Kind::Memory | Kind::Cpu) && !system {
+    if matches!(kind, Kind::Battery | Kind::Memory | Kind::Cpu | Kind::Disk) && !system {
         return None;
     }
     let name = clean_text(m.get("name").map(String::as_str).unwrap_or(""), 24);
@@ -215,6 +224,16 @@ fn battery() -> (u32, u32) {
     }
 }
 
+fn disk_percent() -> u32 {
+    let root = wide("C:\\");
+    let (mut avail, mut total, mut free) = (0u64, 0u64, 0u64);
+    let ok = unsafe { GetDiskFreeSpaceExW(root.as_ptr(), &mut avail, &mut total, &mut free) };
+    if ok == 0 || total == 0 {
+        return 0;
+    }
+    (100 * (total - free.min(total)) / total) as u32
+}
+
 fn sample(w: &mut Widget) {
     match w.kind {
         Kind::Memory => w.value = mem_percent(),
@@ -234,14 +253,21 @@ fn sample(w: &mut Widget) {
                 w.last = (idle, total);
             }
         }
-        Kind::Clock | Kind::Text => {}
+        Kind::Disk => w.value = disk_percent(),
+        Kind::Uptime => {
+            let mins = unsafe { GetTickCount64() } / 60000;
+            w.value = (mins / 60).min(99999) as u32;
+            w.aux = (mins % 60) as u32;
+        }
+        Kind::Clock | Kind::Text | Kind::Date => {}
     }
 }
 
 fn interval(kind: Kind, first: bool) -> u32 {
     match kind {
-        Kind::Clock if first => (60 - now().sec) * 1000 + 100,
-        Kind::Clock => 60000,
+        Kind::Clock | Kind::Date if first => (60 - now().sec) * 1000 + 100,
+        Kind::Clock | Kind::Date | Kind::Uptime => 60000,
+        Kind::Disk => 30000,
         Kind::Battery => 10000,
         Kind::Memory | Kind::Cpu => 2000,
         Kind::Text => 0,
@@ -266,6 +292,17 @@ unsafe fn draw(c: &Ctx, w: &Widget, lw: i32, lh: i32) {
             (t.hm, t.date, None)
         }
         Kind::Text => (w.text.clone(), String::new(), None),
+        Kind::Date => {
+            let t = now();
+            let p: Vec<&str> = t.date.split(' ').collect();
+            (
+                p.get(1).copied().unwrap_or("").to_string(),
+                format!("{} {}", p.first().copied().unwrap_or(""), p.get(2).copied().unwrap_or("")),
+                None,
+            )
+        }
+        Kind::Uptime => (format!("{}H {:02}M", w.value, w.aux), "UPTIME".into(), None),
+        Kind::Disk => (format!("{}%", w.value), "DISK C".into(), Some(w.value)),
         Kind::Memory => (format!("{}%", w.value), "USED".into(), Some(w.value)),
         Kind::Cpu => (format!("{}%", w.value), "LOAD".into(), Some(w.value)),
         Kind::Battery if w.value > 100 => ("--".into(), "NO BATTERY".into(), None),

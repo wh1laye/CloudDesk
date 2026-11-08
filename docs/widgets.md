@@ -15,8 +15,8 @@ y = 60
 width = 220
 height = 130
 
-- kind: clock, text, battery, memory, cpu
-- permissions: battery, memory and cpu need 'system', otherwise the widget is skipped
+- kind: clock, text, battery, memory, cpu, date, uptime, disk
+- permissions: battery, memory, cpu and disk need 'system', otherwise the widget is skipped
 - text kind shows the text key, ascii only, 48 characters at most
 - limits: 16 widgets, manifest up to 4096 bytes, width 120..600, height 100..400
 - folders and manifests that are links are ignored
@@ -28,7 +28,7 @@ height = 130
 
 # themes
 
-- new themes: glass (dark acrylic), frost (light acrylic), ocean (solid blue)
+- new themes: glass (dark acrylic), frost (light acrylic), ocean, rose, mint, violet (solid)
 - glass and frost use the windows 11 acrylic backdrop (build 22621 or newer) through dwm; on older builds or when dwm refuses, windows stay black
 - the backdrop is applied when a window is created: after switching to or from glass, restart the shell and the widget host (turn the component off and on)
 - the lock screen, layered windows and the dock stay opaque
