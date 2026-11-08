@@ -56,6 +56,10 @@ jobs:
           path: ~/.cargo/bin
           key: cargo-tools-${{ runner.os }}-v1
       - run: rustup toolchain install stable --profile minimal
-      - run: cargo install cargo-deny cargo-audit --locked
+      - shell: pwsh
+        run: |
+          foreach ($t in 'cargo-deny', 'cargo-audit') {
+            if (-not (Get-Command $t -ErrorAction SilentlyContinue)) { cargo install $t --locked }
+          }
       - run: cargo deny check
       - run: cargo audit

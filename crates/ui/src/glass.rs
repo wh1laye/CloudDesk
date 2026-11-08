@@ -6,9 +6,9 @@ use windows_sys::Win32::Foundation::HWND;
 use windows_sys::Win32::Graphics::Dwm::{DwmExtendFrameIntoClientArea, DwmSetWindowAttribute};
 use windows_sys::Win32::UI::Controls::MARGINS;
 
-const DARK_MODE: i32 = 20;
-const CORNERS: i32 = 33;
-const BACKDROP: i32 = 38;
+const DARK_MODE: u32 = 20;
+const CORNERS: u32 = 33;
+const BACKDROP: u32 = 38;
 const ROUND: i32 = 2;
 const ACRYLIC: i32 = 3;
 
@@ -22,7 +22,7 @@ pub fn level() -> u8 {
     LEVEL.load(Ordering::Relaxed)
 }
 
-unsafe fn attr(hwnd: HWND, id: i32, v: i32) -> bool {
+unsafe fn attr(hwnd: HWND, id: u32, v: i32) -> bool {
     DwmSetWindowAttribute(
         hwnd,
         id,
