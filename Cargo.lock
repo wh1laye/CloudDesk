@@ -1,0 +1,5 @@
+version = 3
+
+[[package]]
+name = "clouddesk-installer"
+version = "0.1.0"
