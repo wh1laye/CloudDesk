@@ -21,6 +21,10 @@ pub struct Config {
     pub comps: [bool; 8],
     pub theme: String,
     pub contour: bool,
+    pub spaces: bool,
+    pub bar_left: String,
+    pub bar_center: String,
+    pub bar_right: String,
     pub wall_index: usize,
     pub wall_original: Option<String>,
     pub dock: Vec<(String, String)>,
@@ -56,6 +60,10 @@ impl Config {
             comps: [true; 8],
             theme: "black".into(),
             contour: false,
+            spaces: false,
+            bar_left: "settings,search,spaces".into(),
+            bar_center: "clock".into(),
+            bar_right: "wall,battery".into(),
             wall_index: 0,
             wall_original: None,
             dock: default_dock(),
@@ -90,6 +98,10 @@ impl Config {
                     }
                 }
                 ("theme", "name") if THEMES.contains(&v) => c.theme = v.to_string(),
+                ("spaces", "enabled") => c.spaces = v == "true",
+                ("bar", "left") => c.bar_left = clean(v),
+                ("bar", "center") => c.bar_center = clean(v),
+                ("bar", "right") => c.bar_right = clean(v),
                 ("visualizer", "mode") => c.contour = v == "contour",
                 ("wallpaper", "index") => c.wall_index = v.parse().unwrap_or(0),
                 ("wallpaper", "original") => c.wall_original = Some(v.to_string()),
@@ -120,6 +132,13 @@ impl Config {
         s.push_str(&format!(
             "\n[visualizer]\nmode = '{}'\n",
             if self.contour { "contour" } else { "dots" }
+        ));
+        s.push_str(&format!(
+            "\n[spaces]\nenabled = {}\n\n[bar]\nleft = '{}'\ncenter = '{}'\nright = '{}'\n",
+            self.spaces,
+            clean(&self.bar_left),
+            clean(&self.bar_center),
+            clean(&self.bar_right)
         ));
         s.push_str(&format!("\n[wallpaper]\nindex = {}\n", self.wall_index));
         if let Some(o) = &self.wall_original {

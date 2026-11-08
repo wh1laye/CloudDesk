@@ -7,10 +7,13 @@ use std::ptr;
 use std::thread;
 
 use clouddesk_ui::config::Config;
-use clouddesk_ui::gfx::{dot, paint, palette, pill, text, tw, Palette};
+use clouddesk_ui::gfx::{dot, paint, palette, pill, text, Palette};
 use clouddesk_ui::{create, init_dpi, now, open, pump, register, wall, wide, HOST_CLASS};
 use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
-use windows_sys::Win32::Graphics::Gdi::{CreateRoundRectRgn, InvalidateRect, SetWindowRgn};
+use windows_sys::Win32::Graphics::Gdi::{
+    CombineRgn, CreateRectRgn, CreateRoundRectRgn, DeleteObject, InvalidateRect, SetWindowRgn,
+    RGN_OR,
+};
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     RegisterHotKey, UnregisterHotKey, MOD_ALT, MOD_NOREPEAT, VK_SPACE,
 };
@@ -30,12 +33,14 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     SetLayeredWindowAttributes, LWA_COLORKEY, WM_MOUSEMOVE, WM_RBUTTONDOWN, WS_EX_LAYERED,
 };
 
+mod bar;
 mod dock;
 mod hook;
 mod island;
 mod lockscreen;
 mod visualizer;
 mod search;
+mod spaces;
 mod widgets;
 
 const BAR_H: i32 = 36;
@@ -68,16 +73,18 @@ thread_local! {
 }
 
 thread_local! {
+    static BAR_SHAPE: RefCell<Vec<(i32, i32)>> = const { RefCell::new(Vec::new()) };
     static CTL: Cell<usize> = const { Cell::new(0) };
     static HOTKEY: Cell<bool> = const { Cell::new(false) };
 }
 
-unsafe fn sync_hotkey(on: bool) {
+unsafe fn sync_hotkey(on: bool, spaces: bool) {
     let ctl = CTL.with(|c| c.get()) as HWND;
     if ctl.is_null() {
         return;
     }
-    hook::enable(on, ctl);
+    hook::configure(on, spaces);
+    hook::enable(on || spaces, ctl);
     let registered = HOTKEY.with(|h| h.get());
     if on && !registered {
         let ok = RegisterHotKey(ctl, 1, MOD_ALT | MOD_NOREPEAT, VK_SPACE as u32) != 0;
@@ -269,46 +276,78 @@ unsafe fn sync() {
     visualizer::sync(cfg.comps[3], pal(&cfg), scale, ctl);
     visualizer::refresh();
     lockscreen::hotkey(cfg.comps[7], ctl);
-    sync_hotkey(cfg.comps[2]);
+    sync_hotkey(cfg.comps[2], cfg.spaces);
     widgets::sync(cfg.comps[6]);
+}
+
+unsafe fn shape_bar(hwnd: HWND, lay: &bar::Layout, scale: i32) {
+    let changed = BAR_SHAPE.with(|s| {
+        let mut s = s.borrow_mut();
+        if *s == lay.pills {
+            false
+        } else {
+            *s = lay.pills.clone();
+            true
+        }
+    });
+    if !changed {
+        return;
+    }
+    let rgn = CreateRectRgn(0, 0, 0, 0);
+    let r = bar::PILL_H * scale / 100;
+    for (x, w) in &lay.pills {
+        let part = CreateRoundRectRgn(
+            x * scale / 100,
+            bar::PILL_Y * scale / 100,
+            (x + w) * scale / 100 + 1,
+            (bar::PILL_Y + bar::PILL_H) * scale / 100 + 1,
+            r,
+            r,
+        );
+        CombineRgn(rgn, rgn, part, RGN_OR);
+        DeleteObject(part);
+    }
+    SetWindowRgn(hwnd, rgn, 1);
 }
 
 unsafe fn paint_bar(hwnd: HWND) {
     let (cfg, _, _, _, scale) = snap();
-    paint(hwnd, scale, &pal(&cfg), |c, lw, _| {
-        dot(c, c.acc, 18, 18, 4);
-        text(c, "CLOUDDESK", 32, 7, 3, c.fg);
-        let n = wall::list().len();
-        let label = if n == 0 {
-            "NO WALLPAPERS".to_string()
-        } else {
-            format!("WALL {}/{}", cfg.wall_index.min(n - 1) + 1, n)
-        };
-        text(c, &label, (lw - tw(&label, 3)) / 2, 7, 3, c.dim);
-        let t = now();
-        let stamp = format!("{} {}", t.date, t.hm);
-        text(c, &stamp, lw - 18 - tw(&stamp, 3), 7, 3, c.fg);
-    });
+    let st = spaces::state();
+    let lw = screen().0 * 100 / scale;
+    let lay = bar::layout(&cfg, lw, st.0);
+    shape_bar(hwnd, &lay, scale);
+    paint(hwnd, scale, &pal(&cfg), |c, _, _| bar::draw(c, &lay, &cfg, st));
 }
 
 unsafe fn bar_click(px: i32) {
-    let scale = snap().4;
+    let (cfg, _, _, _, scale) = snap();
+    let st = spaces::state();
     let lw = screen().0 * 100 / scale;
-    let x = px * 100 / scale;
-    if x < 200 {
-        open(&settings_exe());
-    } else if x * 10 >= lw * 3 && x * 10 <= lw * 7 {
-        let mut c = Config::load();
-        if wall::step(&mut c, 1).is_ok() {
-            let bar = HOST.with(|h| {
-                let mut h = h.borrow_mut();
-                h.cfg = c;
-                h.bar
-            });
-            if bar != 0 {
-                InvalidateRect(bar as HWND, ptr::null(), 0);
+    let lay = bar::layout(&cfg, lw, st.0);
+    let Some((kind, off)) = bar::hit(&lay, px * 100 / scale) else {
+        return;
+    };
+    match kind {
+        bar::Kind::Settings => open(&settings_exe()),
+        bar::Kind::Search => search::toggle(pal(&cfg), scale),
+        bar::Kind::Spaces => {
+            let ctl = CTL.with(|c| c.get()) as HWND;
+            spaces::goto((off / bar::DOT_STEP + 1).max(1) as usize, ctl);
+        }
+        bar::Kind::Wall => {
+            let mut c = Config::load();
+            if wall::step(&mut c, 1).is_ok() {
+                let bar = HOST.with(|h| {
+                    let mut h = h.borrow_mut();
+                    h.cfg = c;
+                    h.bar
+                });
+                if bar != 0 {
+                    InvalidateRect(bar as HWND, ptr::null(), 0);
+                }
             }
         }
+        _ => {}
     }
 }
 
@@ -435,6 +474,13 @@ unsafe extern "system" fn ctl_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM)
             sync();
             0
         }
+        spaces::WM_SPACES => {
+            let (_, bar, _, _, _) = snap();
+            if bar != 0 {
+                InvalidateRect(bar as HWND, ptr::null(), 0);
+            }
+            0
+        }
         island::WM_MEDIA => {
             island::refresh();
             0
@@ -445,7 +491,9 @@ unsafe extern "system" fn ctl_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM)
         }
         WM_HOTKEY => {
             let (cfg, _, _, _, scale) = snap();
-            if wp == 2 {
+            if (11..=19).contains(&wp) {
+                spaces::goto(wp - 10, hwnd);
+            } else if wp == 2 {
                 lockscreen::lock(pal(&cfg), scale);
             } else {
                 search::toggle(pal(&cfg), scale);

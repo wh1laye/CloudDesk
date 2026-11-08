@@ -30,6 +30,7 @@ const NAMES: [&str; 8] = [
 ];
 const IMPL: [bool; 8] = [true, true, true, true, true, false, true, true];
 const VIS_MODE: R = (50, 392, 360, 44);
+const SPACES_BTN: R = (440, 392, 360, 44);
 const TABS: [&str; 3] = ["SWITCHES", "LOOK", "WALLPAPER"];
 const START: R = (540, 450, 140, 44);
 const STOP: R = (700, 450, 140, 44);
@@ -61,6 +62,7 @@ enum Act {
     Toggle(usize),
     Theme(usize),
     Mode,
+    Spaces,
     Wall(i32),
     Restore,
     Folder,
@@ -93,6 +95,9 @@ fn decide(tab: u8, x: i32, y: i32) -> Act {
         0 => {
             if hit(VIS_MODE, x, y) {
                 return Act::Mode;
+            }
+            if hit(SPACES_BTN, x, y) {
+                return Act::Spaces;
             }
             if let Some(i) = (0..8usize).find(|&i| hit(row(i), x, y)) {
                 return Act::Toggle(i);
@@ -168,6 +173,14 @@ unsafe fn click(hwnd: HWND, px: i32, py: i32) {
             persist(&cfg);
         }
         Act::Toggle(_) => set_msg("NOT BUILT YET"),
+        Act::Spaces => {
+            let cfg = ST.with(|s| {
+                let mut s = s.borrow_mut();
+                s.cfg.spaces = !s.cfg.spaces;
+                s.cfg.clone()
+            });
+            persist(&cfg);
+        }
         Act::Mode => {
             let cfg = ST.with(|s| {
                 let mut s = s.borrow_mut();
@@ -236,6 +249,8 @@ unsafe fn draw(c: &Ctx, s: &St) {
             }
             let mode = if s.cfg.contour { "VISUALIZER: CONTOUR" } else { "VISUALIZER: DOTS" };
             button(c, VIS_MODE, mode, false);
+            let sp = if s.cfg.spaces { "SPACES: ON" } else { "SPACES: OFF" };
+            button(c, SPACES_BTN, sp, s.cfg.spaces);
         }
         1 => {
             title(c, "YOUR COLORS", 60, 130, 6);
