@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/installer"]
+members = ["crates/ui", "crates/shell", "crates/settings", "crates/installer"]
 resolver = "2"
 
 [profile.release]
