@@ -1,0 +1,61 @@
+name: release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+      - run: rustup toolchain install stable --profile minimal --component clippy
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+      - run: cargo build --release --workspace
+      - name: stage
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist/payload | Out-Null
+          foreach ($f in 'clouddesk', 'clouddesk-settings', 'clouddesk-launcher', 'clouddesk-widgets') {
+            Copy-Item "target/release/$f.exe" dist/payload/
+          }
+          Copy-Item target/release/clouddesk-installer.exe dist/
+          Copy-Item LICENSE, THIRD_PARTY.md dist/payload/
+      - name: installer roundtrip
+        shell: pwsh
+        run: ./scripts/roundtrip.ps1 -Installer dist/clouddesk-installer.exe -Payload dist/payload
+      - name: installer full mode roundtrip
+        shell: pwsh
+        run: ./scripts/roundtrip-full.ps1 -Installer dist/clouddesk-installer.exe -Payload dist/payload
+      - name: package
+        shell: pwsh
+        run: |
+          $tag = '${{ github.ref_name }}'
+          New-Item -ItemType Directory -Force out | Out-Null
+          Copy-Item dist/clouddesk-installer.exe "out/CloudDesk-Setup-$tag.exe"
+          Compress-Archive -Path dist/clouddesk-installer.exe, dist/payload -DestinationPath "out/CloudDesk-portable-$tag.zip"
+          Get-ChildItem out -File | ForEach-Object {
+            (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower() + '  ' + $_.Name
+          } | Set-Content out/SHA256SUMS.txt
+      - name: publish
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = '${{ github.ref_name }}'
+          $files = Get-ChildItem out -File | ForEach-Object { $_.FullName }
+          $flags = @()
+          if ($tag -match '-') { $flags += '--prerelease' }
+          gh release create $tag @files --title "CloudDesk $tag" --generate-notes @flags

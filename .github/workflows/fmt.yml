@@ -1,0 +1,20 @@
+name: fmt
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fmt:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install stable --profile minimal --component rustfmt
+      - run: cargo fmt --all
+      - name: commit
+        shell: pwsh
+        run: |
+          if (-not (git status --porcelain)) { Write-Host 'nothing to format'; exit 0 }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -am 'style: cargo fmt'
+          git push

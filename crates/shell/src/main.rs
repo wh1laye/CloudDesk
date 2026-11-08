@@ -38,9 +38,9 @@ mod dock;
 mod hook;
 mod island;
 mod lockscreen;
-mod visualizer;
 mod search;
 mod spaces;
+mod visualizer;
 mod widgets;
 
 const BAR_H: i32 = 36;
