@@ -1,3 +1,6 @@
+mod font;
+mod gui;
+
 use std::cell::RefCell;
 use std::env;
 use std::fs;
@@ -559,9 +562,19 @@ fn run() -> Result<(), String> {
 }
 
 fn main() {
-    let code = match run() {
-        Ok(()) => 0,
-        Err(_) => 1,
+    let code = if env::args().len() == 1 {
+        match gui::run() {
+            Ok(()) => 0,
+            Err(e) => {
+                eprintln!("error: {e}");
+                1
+            }
+        }
+    } else {
+        match run() {
+            Ok(()) => 0,
+            Err(_) => 1,
+        }
     };
     std::process::exit(code);
 }
