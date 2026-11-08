@@ -28,7 +28,8 @@ const NAMES: [&str; 8] = [
     "WIDGETS",
     "LOCK",
 ];
-const IMPL: [bool; 8] = [true, false, false, false, true, false, true, false];
+const IMPL: [bool; 8] = [true, true, true, true, true, false, true, true];
+const VIS_MODE: R = (50, 392, 360, 44);
 const TABS: [&str; 3] = ["SWITCHES", "LOOK", "WALLPAPER"];
 const START: R = (540, 450, 140, 44);
 const STOP: R = (700, 450, 140, 44);
@@ -59,6 +60,7 @@ enum Act {
     Tab(u8),
     Toggle(usize),
     Theme(usize),
+    Mode,
     Wall(i32),
     Restore,
     Folder,
@@ -89,6 +91,9 @@ fn decide(tab: u8, x: i32, y: i32) -> Act {
     }
     match tab {
         0 => {
+            if hit(VIS_MODE, x, y) {
+                return Act::Mode;
+            }
             if let Some(i) = (0..8usize).find(|&i| hit(row(i), x, y)) {
                 return Act::Toggle(i);
             }
@@ -163,6 +168,14 @@ unsafe fn click(hwnd: HWND, px: i32, py: i32) {
             persist(&cfg);
         }
         Act::Toggle(_) => set_msg("NOT BUILT YET"),
+        Act::Mode => {
+            let cfg = ST.with(|s| {
+                let mut s = s.borrow_mut();
+                s.cfg.contour = !s.cfg.contour;
+                s.cfg.clone()
+            });
+            persist(&cfg);
+        }
         Act::Theme(i) => {
             let cfg = ST.with(|s| {
                 let mut s = s.borrow_mut();
@@ -221,6 +234,8 @@ unsafe fn draw(c: &Ctx, s: &St) {
                 text(c, name, r.0 + 10, r.1 + 16, 3, if IMPL[i] { c.fg } else { c.dim });
                 toggle(c, r.0 + 250, r.1 + 12, IMPL[i] && s.cfg.comps[i]);
             }
+            let mode = if s.cfg.contour { "VISUALIZER: CONTOUR" } else { "VISUALIZER: DOTS" };
+            button(c, VIS_MODE, mode, false);
         }
         1 => {
             title(c, "YOUR COLORS", 60, 130, 6);

@@ -24,4 +24,4 @@ height = 130
 
 # visualizer modes
 
-- click the visualizer on the desktop to switch between the dot equalizer and the contour ring; the mode is not saved between runs
+- the mode is chosen in settings, components tab, and saved in config.toml under [visualizer] as mode = contour or dots; clicking the visualizer on the desktop switches it only until the next reload

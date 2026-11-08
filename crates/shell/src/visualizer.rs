@@ -284,6 +284,10 @@ pub unsafe fn init() -> bool {
     register(&wide(CLASS), Some(proc))
 }
 
+pub fn set_contour(on: bool) {
+    CONTOUR.store(on, Ordering::Relaxed);
+}
+
 pub unsafe fn refresh() {
     let h = VIS.with(|v| v.borrow().hwnd);
     if h != 0 {

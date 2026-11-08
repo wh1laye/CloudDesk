@@ -18,6 +18,7 @@ pub const THEMES: [&str; 4] = ["grey", "burgundy", "black", "light"];
 pub struct Config {
     pub comps: [bool; 8],
     pub theme: String,
+    pub contour: bool,
     pub wall_index: usize,
     pub wall_original: Option<String>,
     pub dock: Vec<(String, String)>,
@@ -52,6 +53,7 @@ impl Config {
         Config {
             comps: [true; 8],
             theme: "black".into(),
+            contour: false,
             wall_index: 0,
             wall_original: None,
             dock: default_dock(),
@@ -86,6 +88,7 @@ impl Config {
                     }
                 }
                 ("theme", "name") if THEMES.contains(&v) => c.theme = v.to_string(),
+                ("visualizer", "mode") => c.contour = v == "contour",
                 ("wallpaper", "index") => c.wall_index = v.parse().unwrap_or(0),
                 ("wallpaper", "original") => c.wall_original = Some(v.to_string()),
                 ("dock", "items") => {
@@ -112,6 +115,10 @@ impl Config {
             s.push_str(&format!("{k} = {v}\n"));
         }
         s.push_str(&format!("\n[theme]\nname = '{}'\n", clean(&self.theme)));
+        s.push_str(&format!(
+            "\n[visualizer]\nmode = '{}'\n",
+            if self.contour { "contour" } else { "dots" }
+        ));
         s.push_str(&format!("\n[wallpaper]\nindex = {}\n", self.wall_index));
         if let Some(o) = &self.wall_original {
             s.push_str(&format!("original = '{}'\n", clean(o)));

@@ -264,7 +264,9 @@ unsafe fn sync() {
     }
     let ctl = CTL.with(|c| c.get()) as HWND;
     island::sync(cfg.comps[1], pal(&cfg), scale, ctl);
+    visualizer::set_contour(cfg.contour);
     visualizer::sync(cfg.comps[3], pal(&cfg), scale, ctl);
+    visualizer::refresh();
     lockscreen::hotkey(cfg.comps[7], ctl);
     sync_hotkey(cfg.comps[2]);
     widgets::sync(cfg.comps[6]);
