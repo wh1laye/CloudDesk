@@ -14,6 +14,10 @@ const UNINSTALL_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Uni
 const RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
 const MARKER: &str = ".clouddesk-install";
 const MAIN_EXE: &str = "clouddesk.exe";
+const LAUNCHER_EXE: &str = "clouddesk-launcher.exe";
+const WINLOGON_KEY: &str = r"HKCU\Software\Microsoft\Windows NT\CurrentVersion\Winlogon";
+const SHELL_BACKUP: &str = "shell-backup.txt";
+const RESTORE_SCRIPT: &str = "restore.cmd";
 const TEMP_PREFIX: &str = "clouddesk-uninstall-";
 const MIN_BUILD: u32 = 22631;
 const NO_WINDOW: u32 = 0x0800_0000;
@@ -25,8 +29,10 @@ enum Mode {
     Uninstall,
 }
 
+#[derive(Clone)]
 struct Opts {
     mode: Mode,
+    full: bool,
     silent: bool,
     dir: Option<PathBuf>,
     payload: Option<PathBuf>,
@@ -43,6 +49,7 @@ struct State {
     dir_created: bool,
     reg_written: bool,
     run_written: bool,
+    shell_written: bool,
     reg_backup: Option<PathBuf>,
 }
 
@@ -79,6 +86,7 @@ fn ctx<T>(r: io::Result<T>, what: &str) -> Result<T, String> {
 fn parse(args: Vec<String>) -> Result<Opts, String> {
     let mut o = Opts {
         mode: Mode::Install,
+        full: false,
         silent: false,
         dir: None,
         payload: None,
@@ -102,6 +110,13 @@ fn parse(args: Vec<String>) -> Result<Opts, String> {
             "--silent" => o.silent = true,
             "--autostart" => o.autostart = true,
             "--purge" => o.purge = true,
+            "--profile" => {
+                o.full = match it.next().ok_or("--profile needs a value")?.as_str() {
+                    "light" => false,
+                    "full" => true,
+                    other => return Err(format!("unknown profile: {other}")),
+                }
+            }
             "--skip-checks" => o.skip_checks = true,
             "--dir" => o.dir = Some(PathBuf::from(it.next().ok_or("--dir needs a value")?)),
             "--payload" => {
@@ -133,6 +148,118 @@ fn reg(args: &[&str]) -> Result<String, String> {
 fn try_reg(log: &Log, args: &[&str]) {
     if let Err(e) = reg(args) {
         log.say(&format!("warning: {e}"));
+    }
+}
+
+fn current_shell() -> Option<(String, String)> {
+    let out = reg(&["query", WINLOGON_KEY, "/v", "Shell"]).ok()?;
+    for line in out.lines() {
+        let t = line.trim();
+        if !t.starts_with("Shell") {
+            continue;
+        }
+        for kind in ["REG_EXPAND_SZ", "REG_SZ"] {
+            if let Some((_, v)) = t.split_once(kind) {
+                return Some((kind.to_string(), v.trim().to_string()));
+            }
+        }
+    }
+    None
+}
+
+fn shell_backup_path() -> Result<PathBuf, String> {
+    env::var_os("APPDATA")
+        .map(|a| PathBuf::from(a).join(APP).join(SHELL_BACKUP))
+        .ok_or_else(|| "APPDATA is not set".to_string())
+}
+
+fn backup_shell(log: &Log) -> Result<(), String> {
+    let p = shell_backup_path()?;
+    if p.is_file() {
+        return Ok(());
+    }
+    if let Some(parent) = p.parent() {
+        ctx(fs::create_dir_all(parent), "create settings dir")?;
+    }
+    let text = match current_shell() {
+        Some((kind, value)) if !value.to_lowercase().contains(LAUNCHER_EXE) => {
+            format!("{kind}|{value}")
+        }
+        _ => "none".to_string(),
+    };
+    ctx(fs::write(&p, text), "write shell backup")?;
+    log.say("shell backup saved");
+    Ok(())
+}
+
+fn restore_shell(log: &Log) -> Result<bool, String> {
+    let p = shell_backup_path()?;
+    let Ok(text) = fs::read_to_string(&p) else {
+        let ours = current_shell()
+            .map(|(_, v)| v.to_lowercase().contains(LAUNCHER_EXE))
+            .unwrap_or(false);
+        if ours {
+            reg(&["delete", WINLOGON_KEY, "/v", "Shell", "/f"])?;
+            log.say("shell value removed");
+        }
+        return Ok(ours);
+    };
+    let changed = match text.trim().split_once('|') {
+        Some((kind, value)) => {
+            reg(&[
+                "add",
+                WINLOGON_KEY,
+                "/v",
+                "Shell",
+                "/t",
+                kind,
+                "/d",
+                value,
+                "/f",
+            ])?;
+            true
+        }
+        None => {
+            if current_shell().is_some() {
+                reg(&["delete", WINLOGON_KEY, "/v", "Shell", "/f"])?;
+                true
+            } else {
+                false
+            }
+        }
+    };
+    ctx(fs::remove_file(&p), "remove shell backup")?;
+    log.say("shell restored");
+    Ok(changed)
+}
+
+fn restore_script() -> Result<String, String> {
+    let text = fs::read_to_string(shell_backup_path()?).unwrap_or_default();
+    let set = match text.trim().split_once('|') {
+        Some((kind, value)) => format!(
+            "reg add \"{WINLOGON_KEY}\" /v Shell /t {kind} /d \"{}\" /f",
+            value.replace('"', "\\\"").replace('%', "%%")
+        ),
+        None => format!("reg delete \"{WINLOGON_KEY}\" /v Shell /f"),
+    };
+    Ok(format!(
+        "@echo off\r\ntaskkill /im {LAUNCHER_EXE} /f >nul 2>&1\r\ntaskkill /im {MAIN_EXE} /f >nul 2>&1\r\n{set}\r\nstart \"\" explorer.exe\r\n"
+    ))
+}
+
+fn start_explorer() {
+    let running = Command::new("tasklist")
+        .args(["/fi", "imagename eq explorer.exe", "/nh"])
+        .creation_flags(NO_WINDOW)
+        .output()
+        .map(|o| {
+            String::from_utf8_lossy(&o.stdout)
+                .to_lowercase()
+                .contains("explorer.exe")
+        })
+        .unwrap_or(false);
+    if !running {
+        let _ = Command::new("explorer.exe").spawn();
     }
 }
 
@@ -377,10 +504,40 @@ fn apply(
             log.say("autostart skipped: main executable not in payload");
         }
     }
+    if o.full {
+        let launcher = dir.join(LAUNCHER_EXE);
+        if !launcher.is_file() || !dir.join(MAIN_EXE).is_file() {
+            return Err("launcher or main executable missing from payload".into());
+        }
+        backup_shell(log)?;
+        st.shell_written = true;
+        ctx(
+            fs::write(dir.join(RESTORE_SCRIPT), restore_script()?),
+            "write recovery script",
+        )?;
+        let value = format!("\"{}\"", launcher.display());
+        reg(&[
+            "add",
+            WINLOGON_KEY,
+            "/v",
+            "Shell",
+            "/t",
+            "REG_SZ",
+            "/d",
+            value.as_str(),
+            "/f",
+        ])?;
+        log.say("shell mode enabled");
+    }
     Ok(())
 }
 
 fn rollback(dir: &Path, st: &State, log: &Log) {
+    if st.shell_written {
+        if let Err(e) = restore_shell(log) {
+            log.say(&format!("warning: cannot restore shell: {e}"));
+        }
+    }
     if st.run_written {
         try_reg(log, &["delete", RUN_KEY, "/v", APP, "/f"]);
     }
@@ -437,7 +594,18 @@ fn install(o: &Opts, log: &Log, update: bool) -> Result<(), String> {
     if !o.skip_checks {
         preflight(&dir, size, log)?;
     }
+    let mut eff = o.clone();
+    if had && shell_backup_path().map(|p| p.is_file()).unwrap_or(false) {
+        eff.full = true;
+    }
+    let o = &eff;
     let verb = if had { "update" } else { "install" };
+    if o.full
+        && !o.silent
+        && !confirm("full mode replaces explorer as the shell. test in a virtual machine first. recovery: ctrl+alt+shift+e or restore.cmd in the install folder. continue?")
+    {
+        return Err("cancelled".into());
+    }
     if !o.silent && !confirm(&format!("{verb} {APP} to {}?", dir.display())) {
         return Err("cancelled".into());
     }
@@ -518,8 +686,16 @@ fn uninstall(o: &Opts, log: &Log) -> Result<(), String> {
         let _ = Command::new(&host).arg("--restore").status();
     }
     let _ = Command::new("taskkill")
+        .args(["/im", LAUNCHER_EXE, "/f", "/t"])
+        .output();
+    let _ = Command::new("taskkill")
         .args(["/im", MAIN_EXE, "/f", "/t"])
         .output();
+    let shell_changed = restore_shell(log)
+        .map_err(|e| format!("cannot restore shell, nothing was removed: {e}"))?;
+    if shell_changed {
+        start_explorer();
+    }
     try_reg(log, &["delete", RUN_KEY, "/v", APP, "/f"]);
     try_reg(log, &["delete", UNINSTALL_KEY, "/f"]);
     remove_tree(&dir)?;
