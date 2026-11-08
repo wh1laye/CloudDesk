@@ -27,6 +27,7 @@ jobs:
           New-Item -ItemType Directory -Force dist/payload | Out-Null
           Copy-Item target/release/clouddesk.exe dist/payload/
           Copy-Item target/release/clouddesk-settings.exe dist/payload/
+          Copy-Item target/release/clouddesk-launcher.exe dist/payload/
           Copy-Item target/release/clouddesk-installer.exe dist/
           Copy-Item LICENSE, THIRD_PARTY.md dist/payload/ -ErrorAction SilentlyContinue
       - name: installer roundtrip
@@ -57,6 +58,41 @@ jobs:
           if (Test-Path $dir) { throw 'install dir not removed' }
           if (Test-Path $key) { throw 'registry entry not removed' }
           if (Get-ItemProperty -Path $run -Name CloudDesk -ErrorAction SilentlyContinue) { throw 'autostart not removed' }
+      - name: installer full mode roundtrip
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = (Resolve-Path dist/clouddesk-installer.exe).Path
+          $payload = (Resolve-Path dist/payload).Path
+          $dir = Join-Path $env:RUNNER_TEMP 'cd-install-full'
+          $wl = 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon'
+          $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\CloudDesk'
+          $backup = Join-Path $env:APPDATA 'CloudDesk\shell-backup.txt'
+          $before = (Get-ItemProperty -Path $wl -Name Shell -ErrorAction SilentlyContinue).Shell
+          $want = '"{0}\clouddesk-launcher.exe"' -f $dir
+          & $exe install --silent --skip-checks --profile full --dir $dir --payload $payload
+          if ($LASTEXITCODE -ne 0) { throw 'full install failed' }
+          foreach ($f in 'clouddesk-launcher.exe', 'restore.cmd') {
+            if (-not (Test-Path "$dir\$f")) { throw "missing $f" }
+          }
+          if (-not (Test-Path $backup)) { throw 'shell backup missing' }
+          $now = (Get-ItemProperty -Path $wl -Name Shell -ErrorAction Stop).Shell
+          if ($now -ne $want) { throw "shell value wrong: $now" }
+          & $exe update --silent --skip-checks --dir $dir --payload $payload
+          if ($LASTEXITCODE -ne 0) { throw 'full update failed' }
+          $now = (Get-ItemProperty -Path $wl -Name Shell -ErrorAction Stop).Shell
+          if ($now -ne $want) { throw "shell value lost on update: $now" }
+          cmd /c "`"$dir\restore.cmd`""
+          $mid = (Get-ItemProperty -Path $wl -Name Shell -ErrorAction SilentlyContinue).Shell
+          if ($mid -ne $before) { throw 'restore.cmd did not restore shell' }
+          & "$dir\uninstall.exe" uninstall --silent --purge
+          if ($LASTEXITCODE -ne 0) { throw 'full uninstall failed' }
+          for ($i = 0; $i -lt 40 -and ((Test-Path $dir) -or (Test-Path $key)); $i++) { Start-Sleep -Milliseconds 500 }
+          if (Test-Path $dir) { throw 'install dir not removed' }
+          if (Test-Path $key) { throw 'registry entry not removed' }
+          $after = (Get-ItemProperty -Path $wl -Name Shell -ErrorAction SilentlyContinue).Shell
+          if ($after -ne $before) { throw 'shell value not restored' }
+          if (Test-Path $backup) { throw 'shell backup left behind' }
       - name: package
         shell: pwsh
         run: |
