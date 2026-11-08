@@ -90,7 +90,7 @@ pub fn state() -> (usize, usize) {
         .or_else(|| read_bin(IDS, "CurrentVirtualDesktop"));
     let idx = cur
         .filter(|c| c.len() >= 16)
-        .and_then(|c| ids.chunks_exact(16).position(|g| g == &c[..16]))
+        .and_then(|c| ids.as_chunks::<16>().0.iter().position(|g| g == &c[..16]))
         .map(|i| i + 1)
         .unwrap_or(0);
     (count.min(MAX), idx)

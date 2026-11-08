@@ -129,11 +129,9 @@ unsafe fn on_char(hwnd: HWND, ch: u32) {
                     st.query.pop();
                     refilter(st);
                 }
-                32..=126 => {
-                    if st.query.len() < MAX_QUERY {
-                        st.query.push(ch as u8 as char);
-                        refilter(st);
-                    }
+                32..=126 if st.query.len() < MAX_QUERY => {
+                    st.query.push(ch as u8 as char);
+                    refilter(st);
                 }
                 _ => {}
             }

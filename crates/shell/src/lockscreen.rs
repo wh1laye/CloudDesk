@@ -123,10 +123,8 @@ unsafe fn on_char(hwnd: HWND, ch: u32) {
             }
             27 => l.pw.clear(),
             13 => submit = Some(l.pw.clone()),
-            32..=0xFFFF => {
-                if l.pw.len() < MAX_PW {
-                    l.pw.push(ch as u16);
-                }
+            32..=0xFFFF if l.pw.len() < MAX_PW => {
+                l.pw.push(ch as u16);
             }
             _ => {}
         }
