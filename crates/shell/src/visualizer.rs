@@ -20,7 +20,7 @@ use windows_sys::Win32::Graphics::Gdi::{CreateRoundRectRgn, InvalidateRect, SetW
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     DefWindowProcW, DestroyWindow, GetSystemMetrics, PostMessageW, SetWindowPos, HWND_BOTTOM,
     SM_CYSCREEN, SWP_NOACTIVATE, SWP_SHOWWINDOW, WM_APP, WM_ERASEBKGND, WM_MOUSEACTIVATE,
-    WM_PAINT, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_POPUP,
+    WM_LBUTTONDOWN, WM_PAINT, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_POPUP,
 };
 
 pub const WM_VIS: u32 = WM_APP + 4;
@@ -28,6 +28,7 @@ pub const WM_VIS: u32 = WM_APP + 4;
 const CLASS: &str = "CloudDeskVis";
 const BANDS: usize = 24;
 const ROWS: usize = 10;
+const RING: usize = BANDS * 2;
 const FFT_N: usize = 512;
 const W: i32 = 360;
 const H: i32 = 150;
@@ -40,6 +41,7 @@ struct Vis {
 }
 
 static NOW: Mutex<[u8; BANDS]> = Mutex::new([0; BANDS]);
+static CONTOUR: AtomicBool = AtomicBool::new(false);
 static STOP: Mutex<Option<Arc<AtomicBool>>> = Mutex::new(None);
 
 thread_local! {
@@ -225,7 +227,28 @@ unsafe fn draw(hwnd: HWND) -> bool {
         return false;
     };
     let bands = NOW.lock().map(|g| *g).unwrap_or([0; BANDS]);
+    let contour = CONTOUR.load(Ordering::Relaxed);
     paint(hwnd, scale, &pal, |c, _, _| {
+        if contour {
+            for k in 0..RING {
+                let lv = bands[if k < BANDS { k } else { 2 * BANDS - 1 - k }] as f32;
+                let a = k as f32 * 2.0 * PI / RING as f32;
+                for (inner, base, amp) in [(false, 38.0, 0.3), (true, 22.0, 0.15)] {
+                    let r = base + lv * amp;
+                    let x = (180.0 + r * a.cos()) as i32;
+                    let y = (75.0 + r * a.sin()) as i32;
+                    let b = if inner {
+                        c.dark
+                    } else if lv > 0.0 {
+                        c.acc
+                    } else {
+                        c.dim
+                    };
+                    dot(c, b, x, y, 3);
+                }
+            }
+            return;
+        }
         for (col, &lv) in bands.iter().enumerate() {
             let lit = (lv as i32 * ROWS as i32 + 99) / 100;
             for row in 0..ROWS as i32 {
@@ -248,6 +271,11 @@ unsafe extern "system" fn proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> 
         }
         WM_ERASEBKGND => 1,
         WM_MOUSEACTIVATE => MA_NOACTIVATE,
+        WM_LBUTTONDOWN => {
+            CONTOUR.fetch_xor(true, Ordering::Relaxed);
+            InvalidateRect(hwnd, ptr::null(), 0);
+            0
+        }
         _ => DefWindowProcW(hwnd, msg, wp, lp),
     }
 }

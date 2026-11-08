@@ -36,6 +36,7 @@ mod island;
 mod lockscreen;
 mod visualizer;
 mod search;
+mod widgets;
 
 const BAR_H: i32 = 36;
 const DOCK_H: i32 = dock::STRIP_H;
@@ -266,6 +267,7 @@ unsafe fn sync() {
     visualizer::sync(cfg.comps[3], pal(&cfg), scale, ctl);
     lockscreen::hotkey(cfg.comps[7], ctl);
     sync_hotkey(cfg.comps[2]);
+    widgets::sync(cfg.comps[6]);
 }
 
 unsafe fn paint_bar(hwnd: HWND) {

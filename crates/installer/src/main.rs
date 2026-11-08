@@ -444,6 +444,9 @@ fn apply(
         }
         let bak = bak_path(dir)?;
         if bak.exists() {
+            if !bak.join(MARKER).is_file() {
+                return Err(format!("{} exists and is not a clouddesk backup", bak.display()));
+            }
             remove_tree(&bak)?;
         }
         ctx(fs::rename(dir, &bak), "move previous installation")?;
@@ -617,9 +620,7 @@ fn install(o: &Opts, log: &Log, update: bool) -> Result<(), String> {
     match apply(o, log, &dir, &exe, &payload, size, &mut st) {
         Ok(()) => {
             if let Some(b) = &st.bak {
-                if let Err(e) = remove_tree(b) {
-                    log.say(&format!("warning: {e}"));
-                }
+                log.say(&format!("previous version kept in {}", b.display()));
             }
             log.say("done");
             Ok(())
@@ -698,6 +699,12 @@ fn uninstall(o: &Opts, log: &Log) -> Result<(), String> {
     }
     try_reg(log, &["delete", RUN_KEY, "/v", APP, "/f"]);
     try_reg(log, &["delete", UNINSTALL_KEY, "/f"]);
+    if let Ok(bak) = bak_path(&dir) {
+        if bak.join(MARKER).is_file() {
+            remove_tree(&bak)?;
+            log.say("backup removed");
+        }
+    }
     remove_tree(&dir)?;
     log.say("files removed");
     if purge {

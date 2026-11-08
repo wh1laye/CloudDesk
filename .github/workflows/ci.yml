@@ -14,12 +14,16 @@ jobs:
         with:
           path: |
             ~/.cargo/registry
+            ~/.cargo/bin
             target
           key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.toml') }}
       - run: rustup toolchain install stable --profile minimal --component rustfmt --component clippy
       - run: cargo fmt --all -- --check
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
+      - run: cargo install cargo-deny cargo-audit --locked
+      - run: cargo deny check
+      - run: cargo audit
       - run: cargo build --release
       - name: stage payload
         shell: pwsh
@@ -28,6 +32,7 @@ jobs:
           Copy-Item target/release/clouddesk.exe dist/payload/
           Copy-Item target/release/clouddesk-settings.exe dist/payload/
           Copy-Item target/release/clouddesk-launcher.exe dist/payload/
+          Copy-Item target/release/clouddesk-widgets.exe dist/payload/
           Copy-Item target/release/clouddesk-installer.exe dist/
           Copy-Item LICENSE, THIRD_PARTY.md dist/payload/ -ErrorAction SilentlyContinue
       - name: installer roundtrip
@@ -44,18 +49,19 @@ jobs:
           if ($LASTEXITCODE -eq 0) { throw 'install with bad payload must fail' }
           & $exe install --silent --skip-checks --autostart --dir $dir --payload $payload
           if ($LASTEXITCODE -ne 0) { throw 'install failed' }
-          foreach ($f in 'clouddesk.exe', 'clouddesk-settings.exe', 'uninstall.exe', '.clouddesk-install') {
+          foreach ($f in 'clouddesk.exe', 'clouddesk-widgets.exe', 'clouddesk-settings.exe', 'uninstall.exe', '.clouddesk-install') {
             if (-not (Test-Path "$dir\$f")) { throw "missing $f" }
           }
           if (-not (Test-Path $key)) { throw 'registry entry missing' }
           if (-not (Get-ItemProperty -Path $run -Name CloudDesk -ErrorAction SilentlyContinue)) { throw 'autostart missing' }
           & $exe update --silent --skip-checks --dir $dir --payload $payload
           if ($LASTEXITCODE -ne 0) { throw 'update failed' }
-          if (Test-Path "$dir.bak") { throw 'backup left behind' }
+          if (-not (Test-Path "$dir.bak\.clouddesk-install")) { throw 'backup missing after update' }
           & "$dir\uninstall.exe" uninstall --silent --purge
           if ($LASTEXITCODE -ne 0) { throw 'uninstall failed' }
           for ($i = 0; $i -lt 40 -and ((Test-Path $dir) -or (Test-Path $key)); $i++) { Start-Sleep -Milliseconds 500 }
           if (Test-Path $dir) { throw 'install dir not removed' }
+          if (Test-Path "$dir.bak") { throw 'backup not removed' }
           if (Test-Path $key) { throw 'registry entry not removed' }
           if (Get-ItemProperty -Path $run -Name CloudDesk -ErrorAction SilentlyContinue) { throw 'autostart not removed' }
       - name: installer full mode roundtrip
