@@ -232,6 +232,7 @@ unsafe fn make_wid(scale: i32) -> usize {
 
 unsafe fn sync() {
     let (cfg, bar, dock, wid, scale) = snap();
+    clouddesk_ui::glass::set(pal(&cfg).glass);
     let (mut nb, mut nd, mut nw) = (bar, dock, wid);
     if cfg.comps[0] && bar == 0 {
         nb = make_bar(scale);
@@ -335,7 +336,7 @@ unsafe fn dock_unpin(hwnd: HWND, px: i32) {
 unsafe fn paint_wid(hwnd: HWND) {
     let (cfg, _, _, _, scale) = snap();
     paint(hwnd, scale, &pal(&cfg), |c, lw, lh| {
-        pill(c, 0, 0, lw, lh, c.dark);
+        pill(c, 0, 0, lw, lh, clouddesk_ui::gfx::surface(c));
         dot(c, c.acc, 28, 28, 4);
         text(c, "CLOCK", 42, 18, 3, c.dim);
         let t = now();

@@ -255,7 +255,7 @@ fn fit(main: &str, lw: i32, lh: i32) -> i32 {
 }
 
 unsafe fn draw(c: &Ctx, w: &Widget, lw: i32, lh: i32) {
-    pill(c, 0, 0, lw, lh, c.dark);
+    pill(c, 0, 0, lw, lh, clouddesk_ui::gfx::surface(c));
     dot(c, c.acc, 24, 24, 4);
     let max = ((lw - 50) / 18).max(1) as usize;
     let title: String = w.name.chars().take(max).collect();
@@ -281,7 +281,8 @@ unsafe fn draw(c: &Ctx, w: &Widget, lw: i32, lh: i32) {
     }
     if let Some(p) = bar {
         let track = lw - 44;
-        pill(c, 22, lh - 16, track, 6, c.bg);
+        let rail = if clouddesk_ui::glass::level() > 0 { c.dark } else { c.bg };
+        pill(c, 22, lh - 16, track, 6, rail);
         if p > 0 {
             pill(c, 22, lh - 16, (track * p.min(100) as i32 / 100).max(6), 6, c.acc);
         }
@@ -312,7 +313,9 @@ unsafe fn paint_one(hwnd: HWND, i: usize) {
 
 fn load_theme() {
     let cfg = Config::load();
-    PAL.with(|p| *p.borrow_mut() = Some(palette(&cfg.theme)));
+    let pal = palette(&cfg.theme);
+    clouddesk_ui::glass::set(pal.glass);
+    PAL.with(|p| *p.borrow_mut() = Some(pal));
 }
 
 fn config_time() -> Option<SystemTime> {

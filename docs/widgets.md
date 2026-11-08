@@ -25,3 +25,10 @@ height = 130
 # visualizer modes
 
 - the mode is chosen in settings, components tab, and saved in config.toml under [visualizer] as mode = contour or dots; clicking the visualizer on the desktop switches it only until the next reload
+
+# themes
+
+- new themes: glass (dark acrylic), frost (light acrylic), ocean (solid blue)
+- glass and frost use the windows 11 acrylic backdrop (build 22621 or newer) through dwm; on older builds or when dwm refuses, windows stay black
+- the backdrop is applied when a window is created: after switching to or from glass, restart the shell and the widget host (turn the component off and on)
+- the lock screen, layered windows and the dock stay opaque

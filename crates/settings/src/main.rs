@@ -99,7 +99,7 @@ fn decide(tab: u8, x: i32, y: i32) -> Act {
             }
         }
         1 => {
-            if let Some(i) = (0..4usize).find(|&i| hit((60 + i as i32 * 190, 220, 170, 56), x, y)) {
+            if let Some(i) = (0..THEMES.len()).find(|&i| hit((60 + (i % 4) as i32 * 190, 220 + (i / 4) as i32 * 70, 170, 56), x, y)) {
                 return Act::Theme(i);
             }
         }
@@ -242,13 +242,13 @@ unsafe fn draw(c: &Ctx, s: &St) {
             for (i, n) in THEMES.iter().enumerate() {
                 button(
                     c,
-                    (60 + i as i32 * 190, 220, 170, 56),
+                    (60 + (i % 4) as i32 * 190, 220 + (i / 4) as i32 * 70, 170, 56),
                     &n.to_uppercase(),
                     s.cfg.theme == *n,
                 );
             }
             if !s.cfg.comps[4] {
-                text(c, "COLORS SWITCH IS OFF", 60, 310, 3, c.dim);
+                text(c, "COLORS SWITCH IS OFF", 60, 380, 3, c.dim);
             }
         }
         _ => {
@@ -309,6 +309,8 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
 
 fn main() {
     unsafe {
+        let boot = Config::load();
+        clouddesk_ui::glass::set(palette(if boot.comps[4] { &boot.theme } else { "black" }).glass);
         let class = wide(CLASS);
         let existing = FindWindowW(class.as_ptr(), ptr::null());
         if !existing.is_null() {

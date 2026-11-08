@@ -20,6 +20,15 @@ pub struct Palette {
     pub dim: Rgb,
     pub acc: Rgb,
     pub dark: Rgb,
+    pub glass: u8,
+}
+
+pub fn surface(c: &Ctx) -> HBRUSH {
+    if crate::glass::level() > 0 {
+        c.bg
+    } else {
+        c.dark
+    }
 }
 
 pub fn palette(name: &str) -> Palette {
@@ -30,6 +39,7 @@ pub fn palette(name: &str) -> Palette {
             dim: (140, 140, 144),
             acc: (226, 38, 45),
             dark: (60, 60, 64),
+            glass: 0,
         },
         "burgundy" => Palette {
             bg: (24, 6, 10),
@@ -37,6 +47,7 @@ pub fn palette(name: &str) -> Palette {
             dim: (150, 110, 116),
             acc: (214, 48, 66),
             dark: (62, 18, 26),
+            glass: 0,
         },
         "light" => Palette {
             bg: (238, 238, 234),
@@ -44,6 +55,31 @@ pub fn palette(name: &str) -> Palette {
             dim: (110, 110, 110),
             acc: (214, 40, 45),
             dark: (208, 208, 202),
+            glass: 0,
+        },
+        "glass" => Palette {
+            bg: (0, 0, 0),
+            fg: (248, 248, 252),
+            dim: (178, 182, 196),
+            acc: (96, 176, 255),
+            dark: (34, 38, 50),
+            glass: 1,
+        },
+        "frost" => Palette {
+            bg: (0, 0, 0),
+            fg: (18, 20, 30),
+            dim: (84, 88, 102),
+            acc: (0, 112, 232),
+            dark: (226, 230, 238),
+            glass: 2,
+        },
+        "ocean" => Palette {
+            bg: (6, 16, 30),
+            fg: (232, 242, 252),
+            dim: (118, 142, 168),
+            acc: (64, 170, 255),
+            dark: (18, 40, 66),
+            glass: 0,
         },
         _ => Palette {
             bg: (10, 10, 10),
@@ -51,6 +87,7 @@ pub fn palette(name: &str) -> Palette {
             dim: (130, 130, 130),
             acc: (226, 38, 45),
             dark: (44, 44, 44),
+            glass: 0,
         },
     }
 }

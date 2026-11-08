@@ -12,7 +12,7 @@ pub const KEYS: [&str; 8] = [
     "widgets",
     "lockscreen",
 ];
-pub const THEMES: [&str; 4] = ["grey", "burgundy", "black", "light"];
+pub const THEMES: [&str; 7] = ["grey", "burgundy", "black", "light", "glass", "frost", "ocean"];
 
 #[derive(Clone)]
 pub struct Config {

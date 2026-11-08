@@ -3,6 +3,7 @@
 pub mod config;
 pub mod font;
 pub mod gfx;
+pub mod glass;
 pub mod wall;
 
 use std::mem::{size_of, zeroed};
@@ -14,8 +15,8 @@ use windows_sys::Win32::System::SystemInformation::GetLocalTime;
 use windows_sys::Win32::UI::HiDpi::GetDpiForSystem;
 use windows_sys::Win32::UI::Shell::ShellExecuteW;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DispatchMessageW, GetMessageW, LoadCursorW, RegisterClassExW,
-    SetProcessDPIAware, TranslateMessage, IDC_ARROW, MSG, SW_SHOWNORMAL, WNDCLASSEXW, WNDPROC,
+    CreateWindowExW, DispatchMessageW, GetMessageW, GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, LoadCursorW, RegisterClassExW,
+    SetProcessDPIAware, TranslateMessage, IDC_ARROW, MSG, SW_SHOWNORMAL, WNDCLASSEXW, WNDPROC, WS_EX_LAYERED,
 };
 
 pub const HOST_CLASS: &str = "CloudDeskHost";
@@ -61,6 +62,15 @@ pub unsafe fn register(class: &[u16], proc: WNDPROC) -> bool {
 }
 
 pub unsafe fn create(class: &[u16], ex: u32, style: u32, x: i32, y: i32, w: i32, h: i32) -> HWND {
+    let win = create_raw(class, ex, style, x, y, w, h);
+    let cover = w >= GetSystemMetrics(SM_CXSCREEN) && h >= GetSystemMetrics(SM_CYSCREEN);
+    if w > 0 && h > 0 && !cover && ex & WS_EX_LAYERED == 0 {
+        glass::apply(win);
+    }
+    win
+}
+
+unsafe fn create_raw(class: &[u16], ex: u32, style: u32, x: i32, y: i32, w: i32, h: i32) -> HWND {
     CreateWindowExW(
         ex,
         class.as_ptr(),
