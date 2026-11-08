@@ -1,0 +1,18 @@
+[package]
+name = "clouddesk-shell"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[[bin]]
+name = "clouddesk"
+path = "src/main.rs"
+
+[dependencies]
+clouddesk-ui = { path = "../ui" }
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
