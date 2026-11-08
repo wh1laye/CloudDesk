@@ -1,6 +1,6 @@
 #![windows_subsystem = "windows"]
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::env;
 use std::mem::{size_of, zeroed};
 use std::ptr;
@@ -11,6 +11,9 @@ use clouddesk_ui::gfx::{dot, paint, palette, pill, text, tw, Palette};
 use clouddesk_ui::{create, init_dpi, now, open, pump, register, wall, wide, HOST_CLASS};
 use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
 use windows_sys::Win32::Graphics::Gdi::{CreateRoundRectRgn, InvalidateRect, SetWindowRgn};
+use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+    RegisterHotKey, UnregisterHotKey, MOD_ALT, MOD_NOREPEAT, VK_SPACE,
+};
 use windows_sys::Win32::UI::Shell::{
     SHAppBarMessage, ABE_BOTTOM, ABE_TOP, ABM_NEW, ABM_QUERYPOS, ABM_REMOVE, ABM_SETPOS,
     ABN_FULLSCREENAPP, APPBARDATA,
@@ -18,13 +21,24 @@ use windows_sys::Win32::UI::Shell::{
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     DefWindowProcW, DestroyWindow, GetSystemMetrics, PostQuitMessage, SetTimer, SetWindowPos,
     HWND_BOTTOM, HWND_TOPMOST, SM_CXSCREEN, SM_CYSCREEN, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
-    SWP_SHOWWINDOW, WM_APP, WM_CLOSE, WM_DESTROY, WM_ERASEBKGND, WM_LBUTTONDOWN,
+    SWP_SHOWWINDOW, WM_APP, WM_CLOSE, WM_DESTROY, WM_ERASEBKGND, WM_HOTKEY, WM_LBUTTONDOWN,
     WM_MOUSEACTIVATE, WM_PAINT, WM_TIMER, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
     WS_POPUP,
 };
 
+use windows_sys::Win32::UI::WindowsAndMessaging::{
+    SetLayeredWindowAttributes, LWA_COLORKEY, WM_MOUSEMOVE, WM_RBUTTONDOWN, WS_EX_LAYERED,
+};
+
+mod dock;
+mod hook;
+mod island;
+mod lockscreen;
+mod visualizer;
+mod search;
+
 const BAR_H: i32 = 36;
-const DOCK_H: i32 = 76;
+const DOCK_H: i32 = dock::STRIP_H;
 const WID_W: i32 = 300;
 const WID_H: i32 = 150;
 const WM_RELOAD: u32 = WM_APP + 1;
@@ -50,6 +64,27 @@ thread_local! {
         wid: 0,
         scale: 100,
     });
+}
+
+thread_local! {
+    static CTL: Cell<usize> = const { Cell::new(0) };
+    static HOTKEY: Cell<bool> = const { Cell::new(false) };
+}
+
+unsafe fn sync_hotkey(on: bool) {
+    let ctl = CTL.with(|c| c.get()) as HWND;
+    if ctl.is_null() {
+        return;
+    }
+    hook::enable(on, ctl);
+    let registered = HOTKEY.with(|h| h.get());
+    if on && !registered {
+        let ok = RegisterHotKey(ctl, 1, MOD_ALT | MOD_NOREPEAT, VK_SPACE as u32) != 0;
+        HOTKEY.with(|h| h.set(ok));
+    } else if !on && registered {
+        UnregisterHotKey(ctl, 1);
+        HOTKEY.with(|h| h.set(false));
+    }
 }
 
 fn snap() -> (Config, usize, usize, usize, i32) {
@@ -155,7 +190,7 @@ unsafe fn make_bar(scale: i32) -> usize {
 unsafe fn make_dock(scale: i32) -> usize {
     let h = create(
         &wide(DOCK_CLASS),
-        WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_NOACTIVATE,
+        WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_LAYERED,
         WS_POPUP,
         0,
         0,
@@ -165,6 +200,7 @@ unsafe fn make_dock(scale: i32) -> usize {
     if h.is_null() {
         return 0;
     }
+    SetLayeredWindowAttributes(h, 0x00FF00FF, 255, LWA_COLORKEY);
     appbar_add(h, ABE_BOTTOM, DOCK_H * scale / 100);
     h as usize
 }
@@ -222,6 +258,14 @@ unsafe fn sync() {
             InvalidateRect(w as HWND, ptr::null(), 0);
         }
     }
+    if nd != 0 {
+        dock::place(nd as HWND, scale, cfg.dock.len());
+    }
+    let ctl = CTL.with(|c| c.get()) as HWND;
+    island::sync(cfg.comps[1], pal(&cfg), scale, ctl);
+    visualizer::sync(cfg.comps[3], pal(&cfg), scale, ctl);
+    lockscreen::hotkey(cfg.comps[7], ctl);
+    sync_hotkey(cfg.comps[2]);
 }
 
 unsafe fn paint_bar(hwnd: HWND) {
@@ -265,28 +309,22 @@ unsafe fn bar_click(px: i32) {
 
 unsafe fn paint_dock(hwnd: HWND) {
     let (cfg, _, _, _, scale) = snap();
-    paint(hwnd, scale, &pal(&cfg), |c, lw, _| {
-        let x0 = (lw - cfg.dock.len() as i32 * 80) / 2;
-        for (i, (label, _)) in cfg.dock.iter().enumerate() {
-            let x = x0 + i as i32 * 80 + 8;
-            pill(c, x, 8, 64, 44, c.dark);
-            let first = label.chars().next().unwrap_or(' ').to_string();
-            text(c, &first, x + 22, 16, 4, c.fg);
-            let short: String = label.chars().take(6).collect();
-            text(c, &short, x + 32 - tw(&short, 2) / 2, 56, 2, c.dim);
-        }
-    });
+    dock::draw(hwnd, scale, &pal(&cfg), &cfg.dock);
 }
 
-unsafe fn dock_click(px: i32) {
+unsafe fn dock_click(hwnd: HWND, px: i32) {
     let (cfg, _, _, _, scale) = snap();
-    let lw = screen().0 * 100 / scale;
-    let x = px * 100 / scale - (lw - cfg.dock.len() as i32 * 80) / 2;
-    if x < 0 {
-        return;
+    if let Some(i) = dock::hit(hwnd, scale, cfg.dock.len(), px) {
+        if let Some((_, target)) = cfg.dock.get(i) {
+            open(target);
+        }
     }
-    if let Some((_, target)) = cfg.dock.get((x / 80) as usize) {
-        open(target);
+}
+
+unsafe fn dock_unpin(hwnd: HWND, px: i32) {
+    let (cfg, _, _, _, scale) = snap();
+    if let Some(i) = dock::hit(hwnd, scale, cfg.dock.len(), px) {
+        dock::unpin(i);
     }
 }
 
@@ -340,7 +378,19 @@ unsafe extern "system" fn dock_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM
         WM_ERASEBKGND => 1,
         WM_MOUSEACTIVATE => MA_NOACTIVATE,
         WM_LBUTTONDOWN => {
-            dock_click(lo(lp));
+            dock_click(hwnd, lo(lp));
+            0
+        }
+        WM_RBUTTONDOWN => {
+            dock_unpin(hwnd, lo(lp));
+            0
+        }
+        WM_MOUSEMOVE => {
+            dock::on_move(hwnd, snap().4, lo(lp));
+            0
+        }
+        0x02A3 => {
+            dock::on_leave(hwnd);
             0
         }
         WM_BAR => {
@@ -380,6 +430,23 @@ unsafe extern "system" fn ctl_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM)
             sync();
             0
         }
+        island::WM_MEDIA => {
+            island::refresh();
+            0
+        }
+        visualizer::WM_VIS => {
+            visualizer::refresh();
+            0
+        }
+        WM_HOTKEY => {
+            let (cfg, _, _, _, scale) = snap();
+            if wp == 2 {
+                lockscreen::lock(pal(&cfg), scale);
+            } else {
+                search::toggle(pal(&cfg), scale);
+            }
+            0
+        }
         WM_CLOSE => {
             DestroyWindow(hwnd);
             0
@@ -417,7 +484,11 @@ fn main() {
         let ok = register(&host_class, Some(ctl_proc))
             && register(&wide(BAR_CLASS), Some(bar_proc))
             && register(&wide(DOCK_CLASS), Some(dock_proc))
-            && register(&wide(WID_CLASS), Some(wid_proc));
+            && register(&wide(WID_CLASS), Some(wid_proc))
+            && search::init()
+            && island::init()
+            && lockscreen::init()
+            && visualizer::init();
         if !ok {
             std::process::exit(1);
         }
@@ -431,6 +502,7 @@ fn main() {
         if ctl.is_null() {
             std::process::exit(1);
         }
+        CTL.with(|c| c.set(ctl as usize));
         sync();
         thread::spawn(|| {
             let _ = wall::ensure();
