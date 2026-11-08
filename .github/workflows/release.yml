@@ -58,4 +58,9 @@ jobs:
           $files = Get-ChildItem out -File | ForEach-Object { $_.FullName }
           $flags = @()
           if ($tag -match '-') { $flags += '--prerelease' }
-          gh release create $tag @files --title "CloudDesk $tag" --generate-notes @flags
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag @files --clobber
+          } else {
+            gh release create $tag @files --title "CloudDesk $tag" --generate-notes @flags
+          }
