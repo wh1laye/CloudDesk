@@ -12,7 +12,7 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     DefWindowProcW, DestroyWindow, GetSystemMetrics, SetForegroundWindow, SetTimer, ShowWindow,
-    SM_CXSCREEN, SM_CYSCREEN, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
+    SM_CXSCREEN, SM_CXVIRTUALSCREEN, SM_CYSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
     SM_YVIRTUALSCREEN, SW_SHOW, WM_CHAR, WM_ERASEBKGND, WM_PAINT, WM_TIMER, WS_EX_TOOLWINDOW,
     WS_EX_TOPMOST, WS_POPUP,
 };
@@ -56,7 +56,8 @@ fn verify(pw: &[u16]) -> bool {
     let mut p: Vec<u16> = pw.to_vec();
     p.push(0);
     let mut token: HANDLE = ptr::null_mut();
-    let ok = unsafe { LogonUserW(user.as_ptr(), domain.as_ptr(), p.as_ptr(), 2, 0, &mut token) } != 0;
+    let ok =
+        unsafe { LogonUserW(user.as_ptr(), domain.as_ptr(), p.as_ptr(), 2, 0, &mut token) } != 0;
     p.iter_mut().for_each(|c| *c = 0);
     if ok && !token.is_null() {
         unsafe {
@@ -69,8 +70,7 @@ fn verify(pw: &[u16]) -> bool {
 unsafe fn draw(hwnd: HWND) -> bool {
     let snap = LK.with(|l| {
         let l = l.borrow();
-        l.pal
-            .map(|p| (p, l.scale, l.pw.len(), l.wrong, l.cx, l.cy))
+        l.pal.map(|p| (p, l.scale, l.pw.len(), l.wrong, l.cx, l.cy))
     });
     let Some((pal, scale, n, wrong, cx, cy)) = snap else {
         return false;
@@ -89,7 +89,14 @@ unsafe fn draw(hwnd: HWND) -> bool {
             }
         }
         if wrong {
-            text(c, "WRONG PASSWORD", cx - tw("WRONG PASSWORD", 3) / 2, cy + 90, 3, c.acc);
+            text(
+                c,
+                "WRONG PASSWORD",
+                cx - tw("WRONG PASSWORD", 3) / 2,
+                cy + 90,
+                3,
+                c.acc,
+            );
         }
     });
     true

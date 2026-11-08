@@ -195,11 +195,7 @@ unsafe fn on_click(hwnd: HWND, py: i32) {
 unsafe fn draw(hwnd: HWND) -> bool {
     let snap = ST.with(|s| {
         s.borrow().as_ref().map(|st| {
-            let rows: Vec<String> = st
-                .shown
-                .iter()
-                .map(|&i| clip(&st.all[i].0, 30))
-                .collect();
+            let rows: Vec<String> = st.shown.iter().map(|&i| clip(&st.all[i].0, 30)).collect();
             (st.pal, st.scale, st.query.clone(), rows, st.sel)
         })
     });

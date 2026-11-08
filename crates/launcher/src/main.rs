@@ -55,7 +55,9 @@ fn restore_shell() {
         Some((kind, value)) => {
             run_hidden(
                 "reg",
-                &["add", WINLOGON, "/v", "Shell", "/t", kind, "/d", value, "/f"],
+                &[
+                    "add", WINLOGON, "/v", "Shell", "/t", kind, "/d", value, "/f",
+                ],
             );
         }
         None => {

@@ -164,7 +164,15 @@ unsafe fn appbar_remove(hwnd: HWND) {
 unsafe fn fullscreen(hwnd: HWND, wp: WPARAM, lp: LPARAM) {
     if wp == ABN_FULLSCREENAPP as usize {
         let z = if lp != 0 { HWND_BOTTOM } else { HWND_TOPMOST };
-        SetWindowPos(hwnd, z, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        SetWindowPos(
+            hwnd,
+            z,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+        );
     }
 }
 
@@ -232,7 +240,15 @@ unsafe fn make_wid(scale: i32) -> usize {
     SetWindowRgn(win, CreateRoundRectRgn(0, 0, w + 1, h + 1, r, r), 0);
     let x = screen().0 - w - 24 * scale / 100;
     let y = (BAR_H + 24) * scale / 100;
-    SetWindowPos(win, HWND_BOTTOM, x, y, w, h, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    SetWindowPos(
+        win,
+        HWND_BOTTOM,
+        x,
+        y,
+        w,
+        h,
+        SWP_NOACTIVATE | SWP_SHOWWINDOW,
+    );
     arm_timer(win, true);
     win as usize
 }
@@ -316,7 +332,9 @@ unsafe fn paint_bar(hwnd: HWND) {
     let lw = screen().0 * 100 / scale;
     let lay = bar::layout(&cfg, lw, st.0);
     shape_bar(hwnd, &lay, scale);
-    paint(hwnd, scale, &pal(&cfg), |c, _, _| bar::draw(c, &lay, &cfg, st));
+    paint(hwnd, scale, &pal(&cfg), |c, _, _| {
+        bar::draw(c, &lay, &cfg, st)
+    });
 }
 
 unsafe fn bar_click(px: i32) {
@@ -529,8 +547,11 @@ fn main() {
     unsafe {
         let scale = init_dpi();
         let host_class = wide(HOST_CLASS);
-        if !windows_sys::Win32::UI::WindowsAndMessaging::FindWindowW(host_class.as_ptr(), ptr::null())
-            .is_null()
+        if !windows_sys::Win32::UI::WindowsAndMessaging::FindWindowW(
+            host_class.as_ptr(),
+            ptr::null(),
+        )
+        .is_null()
         {
             return;
         }

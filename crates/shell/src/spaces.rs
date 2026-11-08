@@ -26,14 +26,27 @@ const SESSIONS: &str = r"Software\Microsoft\Windows\CurrentVersion\Explorer\Sess
 fn read_bin(path: &str, name: &str) -> Option<Vec<u8>> {
     unsafe {
         let mut key: HKEY = ptr::null_mut();
-        if RegOpenKeyExW(HKEY_CURRENT_USER, wide(path).as_ptr(), 0, KEY_READ, &mut key) != 0 {
+        if RegOpenKeyExW(
+            HKEY_CURRENT_USER,
+            wide(path).as_ptr(),
+            0,
+            KEY_READ,
+            &mut key,
+        ) != 0
+        {
             return None;
         }
         let n = wide(name);
         let mut len: u32 = 0;
         let mut out = None;
-        if RegQueryValueExW(key, n.as_ptr(), ptr::null(), ptr::null_mut(), ptr::null_mut(), &mut len)
-            == 0
+        if RegQueryValueExW(
+            key,
+            n.as_ptr(),
+            ptr::null(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            &mut len,
+        ) == 0
             && len > 0
             && len <= 4096
         {

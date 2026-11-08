@@ -104,7 +104,18 @@ fn decide(tab: u8, x: i32, y: i32) -> Act {
             }
         }
         1 => {
-            if let Some(i) = (0..THEMES.len()).find(|&i| hit((60 + (i % 4) as i32 * 190, 220 + (i / 4) as i32 * 70, 170, 56), x, y)) {
+            if let Some(i) = (0..THEMES.len()).find(|&i| {
+                hit(
+                    (
+                        60 + (i % 4) as i32 * 190,
+                        220 + (i / 4) as i32 * 70,
+                        170,
+                        56,
+                    ),
+                    x,
+                    y,
+                )
+            }) {
                 return Act::Theme(i);
             }
         }
@@ -238,18 +249,38 @@ unsafe fn draw(c: &Ctx, s: &St) {
     text(c, "CLOUDDESK", 60, 28, 3, c.dim);
     text(c, "SETTINGS", 820 - tw("SETTINGS", 3), 28, 3, c.dim);
     for (i, n) in TABS.iter().enumerate() {
-        button(c, (60 + i as i32 * 190, 66, 170, 36), n, s.tab as usize == i);
+        button(
+            c,
+            (60 + i as i32 * 190, 66, 170, 36),
+            n,
+            s.tab as usize == i,
+        );
     }
     match s.tab {
         0 => {
             for (i, name) in NAMES.iter().enumerate() {
                 let r = row(i);
-                text(c, name, r.0 + 10, r.1 + 16, 3, if IMPL[i] { c.fg } else { c.dim });
+                text(
+                    c,
+                    name,
+                    r.0 + 10,
+                    r.1 + 16,
+                    3,
+                    if IMPL[i] { c.fg } else { c.dim },
+                );
                 toggle(c, r.0 + 250, r.1 + 12, IMPL[i] && s.cfg.comps[i]);
             }
-            let mode = if s.cfg.contour { "VISUALIZER: CONTOUR" } else { "VISUALIZER: DOTS" };
+            let mode = if s.cfg.contour {
+                "VISUALIZER: CONTOUR"
+            } else {
+                "VISUALIZER: DOTS"
+            };
             button(c, VIS_MODE, mode, false);
-            let sp = if s.cfg.spaces { "SPACES: ON" } else { "SPACES: OFF" };
+            let sp = if s.cfg.spaces {
+                "SPACES: ON"
+            } else {
+                "SPACES: OFF"
+            };
             button(c, SPACES_BTN, sp, s.cfg.spaces);
         }
         1 => {
@@ -257,7 +288,12 @@ unsafe fn draw(c: &Ctx, s: &St) {
             for (i, n) in THEMES.iter().enumerate() {
                 button(
                     c,
-                    (60 + (i % 4) as i32 * 190, 220 + (i / 4) as i32 * 70, 170, 56),
+                    (
+                        60 + (i % 4) as i32 * 190,
+                        220 + (i / 4) as i32 * 70,
+                        170,
+                        56,
+                    ),
                     &n.to_uppercase(),
                     s.cfg.theme == *n,
                 );
@@ -273,7 +309,12 @@ unsafe fn draw(c: &Ctx, s: &St) {
                 .get(s.cfg.wall_index)
                 .map(|p| file_name(p))
                 .unwrap_or_else(|| "NONE".to_string());
-            let line = format!("{}/{} {}", s.cfg.wall_index.min(l.len().saturating_sub(1)) + 1, l.len(), name);
+            let line = format!(
+                "{}/{} {}",
+                s.cfg.wall_index.min(l.len().saturating_sub(1)) + 1,
+                l.len(),
+                name
+            );
             text(c, &line, 60, 224, 4, c.fg);
             button(c, PREV, "PREV", false);
             button(c, NEXT, "NEXT", false);
@@ -284,7 +325,11 @@ unsafe fn draw(c: &Ctx, s: &St) {
     }
     let running = !host_window().is_null();
     let status = if s.msg.is_empty() {
-        if running { "HOST: RUNNING" } else { "HOST: STOPPED" }
+        if running {
+            "HOST: RUNNING"
+        } else {
+            "HOST: STOPPED"
+        }
     } else {
         s.msg.as_str()
     };
@@ -295,7 +340,11 @@ unsafe fn draw(c: &Ctx, s: &St) {
 
 unsafe fn paint_win(hwnd: HWND) {
     let s = ST.with(|s| s.borrow().clone());
-    let pal = palette(if s.cfg.comps[4] { &s.cfg.theme } else { "black" });
+    let pal = palette(if s.cfg.comps[4] {
+        &s.cfg.theme
+    } else {
+        "black"
+    });
     paint(hwnd, s.scale, &pal, |c, _, _| draw(c, &s));
 }
 

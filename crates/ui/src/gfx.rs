@@ -169,7 +169,13 @@ pub unsafe fn text(c: &Ctx, s: &str, x: i32, y: i32, cell: i32, b: HBRUSH) {
 pub unsafe fn title(c: &Ctx, word: &str, x: i32, y: i32, cell: i32) {
     text(c, word, x, y, cell, c.fg);
     let end = x + tw(word, cell);
-    dot(c, c.acc, end - cell / 2, y + 6 * cell + cell / 2, (cell * 4 / 10).max(2));
+    dot(
+        c,
+        c.acc,
+        end - cell / 2,
+        y + 6 * cell + cell / 2,
+        (cell * 4 / 10).max(2),
+    );
 }
 
 pub unsafe fn pill(c: &Ctx, x: i32, y: i32, w: i32, h: i32, b: HBRUSH) {
@@ -186,7 +192,14 @@ pub unsafe fn toggle(c: &Ctx, x: i32, y: i32, on: bool) {
 pub unsafe fn button(c: &Ctx, r: R, label: &str, primary: bool) {
     pill(c, r.0, r.1, r.2, r.3, if primary { c.acc } else { c.dark });
     let fg = if primary { c.fg } else { c.dim };
-    text(c, label, r.0 + (r.2 - tw(label, 3)) / 2, r.1 + (r.3 - 21) / 2, 3, fg);
+    text(
+        c,
+        label,
+        r.0 + (r.2 - tw(label, 3)) / 2,
+        r.1 + (r.3 - 21) / 2,
+        3,
+        fg,
+    );
 }
 
 pub unsafe fn paint(hwnd: HWND, scale: i32, pal: &Palette, f: impl FnOnce(&Ctx, i32, i32)) {

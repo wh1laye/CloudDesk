@@ -8,7 +8,9 @@ use clouddesk_ui::gfx::{paint, pill, text, Palette};
 use clouddesk_ui::{wide, HOST_CLASS};
 use windows_sys::Win32::Foundation::{HWND, RECT};
 use windows_sys::Win32::Graphics::Gdi::InvalidateRect;
-use windows_sys::Win32::UI::Input::KeyboardAndMouse::{TrackMouseEvent, TME_LEAVE, TRACKMOUSEEVENT};
+use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+    TrackMouseEvent, TME_LEAVE, TRACKMOUSEEVENT,
+};
 use windows_sys::Win32::UI::Shell::{SHGetFileInfoW, SHFILEINFOW, SHGFI_ICON, SHGFI_LARGEICON};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     DestroyIcon, DrawIconEx, FindWindowW, GetClientRect, GetSystemMetrics, PostMessageW,

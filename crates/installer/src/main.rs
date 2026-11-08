@@ -414,8 +414,7 @@ fn confirm(q: &str) -> bool {
     print!("{q} [y/N] ");
     let _ = io::stdout().flush();
     let mut s = String::new();
-    io::stdin().read_line(&mut s).is_ok()
-        && matches!(s.trim().to_lowercase().as_str(), "y" | "yes")
+    io::stdin().read_line(&mut s).is_ok() && matches!(s.trim().to_lowercase().as_str(), "y" | "yes")
 }
 
 fn bak_path(dir: &Path) -> Result<PathBuf, String> {
@@ -445,7 +444,10 @@ fn apply(
         let bak = bak_path(dir)?;
         if bak.exists() {
             if !bak.join(MARKER).is_file() {
-                return Err(format!("{} exists and is not a clouddesk backup", bak.display()));
+                return Err(format!(
+                    "{} exists and is not a clouddesk backup",
+                    bak.display()
+                ));
             }
             remove_tree(&bak)?;
         }
@@ -560,7 +562,9 @@ fn rollback(dir: &Path, st: &State, log: &Log) {
     }
     if let Some(bak) = &st.bak {
         if let Err(e) = fs::rename(bak, dir) {
-            log.say(&format!("warning: cannot restore previous installation: {e}"));
+            log.say(&format!(
+                "warning: cannot restore previous installation: {e}"
+            ));
         }
     }
 }

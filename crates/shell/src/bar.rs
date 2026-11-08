@@ -51,7 +51,10 @@ fn kind_of(s: &str) -> Option<Kind> {
 }
 
 fn parse(list: &str) -> Vec<Kind> {
-    list.split(',').filter_map(kind_of).take(MAX_ITEMS).collect()
+    list.split(',')
+        .filter_map(kind_of)
+        .take(MAX_ITEMS)
+        .collect()
 }
 
 fn width(k: Kind, spaces: usize) -> i32 {

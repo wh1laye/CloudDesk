@@ -51,7 +51,9 @@ fn default_dock() -> Vec<(String, String)> {
 }
 
 fn clean(s: &str) -> String {
-    s.chars().filter(|c| !matches!(c, '\'' | '\n' | '\r')).collect()
+    s.chars()
+        .filter(|c| !matches!(c, '\'' | '\n' | '\r'))
+        .collect()
 }
 
 impl Config {
@@ -148,7 +150,11 @@ impl Config {
             .dock
             .iter()
             .map(|(a, b)| {
-                format!("{}|{}", clean(a).replace([';', '|'], ""), clean(b).replace(';', ""))
+                format!(
+                    "{}|{}",
+                    clean(a).replace([';', '|'], ""),
+                    clean(b).replace(';', "")
+                )
             })
             .collect();
         s.push_str(&format!("\n[dock]\nitems = '{}'\n", items.join(";")));

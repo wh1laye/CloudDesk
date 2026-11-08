@@ -37,8 +37,10 @@ const TIMER_WATCH: usize = 2;
 const WATCH_MS: u32 = 3000;
 const MA_NOACTIVATE: LRESULT = 3;
 
-const SEED_MEMORY: &str = "[widget]\nname = 'MEMORY'\nkind = 'memory'\npermissions = 'system'\nx = 24\ny = 60\n";
-const SEED_CPU: &str = "[widget]\nname = 'CPU'\nkind = 'cpu'\npermissions = 'system'\nx = 24\ny = 210\n";
+const SEED_MEMORY: &str =
+    "[widget]\nname = 'MEMORY'\nkind = 'memory'\npermissions = 'system'\nx = 24\ny = 60\n";
+const SEED_CPU: &str =
+    "[widget]\nname = 'CPU'\nkind = 'cpu'\npermissions = 'system'\nx = 24\ny = 210\n";
 
 #[derive(Clone, Copy, PartialEq)]
 enum Kind {
@@ -297,7 +299,11 @@ unsafe fn draw(c: &Ctx, w: &Widget, lw: i32, lh: i32) {
             let p: Vec<&str> = t.date.split(' ').collect();
             (
                 p.get(1).copied().unwrap_or("").to_string(),
-                format!("{} {}", p.first().copied().unwrap_or(""), p.get(2).copied().unwrap_or("")),
+                format!(
+                    "{} {}",
+                    p.first().copied().unwrap_or(""),
+                    p.get(2).copied().unwrap_or("")
+                ),
                 None,
             )
         }
@@ -308,7 +314,11 @@ unsafe fn draw(c: &Ctx, w: &Widget, lw: i32, lh: i32) {
         Kind::Battery if w.value > 100 => ("--".into(), "NO BATTERY".into(), None),
         Kind::Battery => (
             format!("{}%", w.value),
-            if w.aux == 1 { "AC".into() } else { "BATTERY".into() },
+            if w.aux == 1 {
+                "AC".into()
+            } else {
+                "BATTERY".into()
+            },
             Some(w.value),
         ),
     };
@@ -318,10 +328,21 @@ unsafe fn draw(c: &Ctx, w: &Widget, lw: i32, lh: i32) {
     }
     if let Some(p) = bar {
         let track = lw - 44;
-        let rail = if clouddesk_ui::glass::level() > 0 { c.dark } else { c.bg };
+        let rail = if clouddesk_ui::glass::level() > 0 {
+            c.dark
+        } else {
+            c.bg
+        };
         pill(c, 22, lh - 16, track, 6, rail);
         if p > 0 {
-            pill(c, 22, lh - 16, (track * p.min(100) as i32 / 100).max(6), 6, c.acc);
+            pill(
+                c,
+                22,
+                lh - 16,
+                (track * p.min(100) as i32 / 100).max(6),
+                6,
+                c.acc,
+            );
         }
     }
 }

@@ -23,7 +23,12 @@ pub fn level() -> u8 {
 }
 
 unsafe fn attr(hwnd: HWND, id: i32, v: i32) -> bool {
-    DwmSetWindowAttribute(hwnd, id, &v as *const i32 as *const c_void, size_of::<i32>() as u32) >= 0
+    DwmSetWindowAttribute(
+        hwnd,
+        id,
+        &v as *const i32 as *const c_void,
+        size_of::<i32>() as u32,
+    ) >= 0
 }
 
 pub unsafe fn apply(hwnd: HWND) -> bool {

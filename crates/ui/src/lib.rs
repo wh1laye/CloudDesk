@@ -15,8 +15,9 @@ use windows_sys::Win32::System::SystemInformation::GetLocalTime;
 use windows_sys::Win32::UI::HiDpi::GetDpiForSystem;
 use windows_sys::Win32::UI::Shell::ShellExecuteW;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DispatchMessageW, GetMessageW, GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, LoadCursorW, RegisterClassExW,
-    SetProcessDPIAware, TranslateMessage, IDC_ARROW, MSG, SW_SHOWNORMAL, WNDCLASSEXW, WNDPROC, WS_EX_LAYERED,
+    CreateWindowExW, DispatchMessageW, GetMessageW, GetSystemMetrics, LoadCursorW,
+    RegisterClassExW, SetProcessDPIAware, TranslateMessage, IDC_ARROW, MSG, SM_CXSCREEN,
+    SM_CYSCREEN, SW_SHOWNORMAL, WNDCLASSEXW, WNDPROC, WS_EX_LAYERED,
 };
 
 pub const HOST_CLASS: &str = "CloudDeskHost";

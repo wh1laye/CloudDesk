@@ -19,8 +19,8 @@ use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows_sys::Win32::Graphics::Gdi::{CreateRoundRectRgn, InvalidateRect, SetWindowRgn};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     DefWindowProcW, DestroyWindow, GetSystemMetrics, PostMessageW, SetWindowPos, HWND_BOTTOM,
-    SM_CYSCREEN, SWP_NOACTIVATE, SWP_SHOWWINDOW, WM_APP, WM_ERASEBKGND, WM_MOUSEACTIVATE,
-    WM_LBUTTONDOWN, WM_PAINT, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_POPUP,
+    SM_CYSCREEN, SWP_NOACTIVATE, SWP_SHOWWINDOW, WM_APP, WM_ERASEBKGND, WM_LBUTTONDOWN,
+    WM_MOUSEACTIVATE, WM_PAINT, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_POPUP,
 };
 
 pub const WM_VIS: u32 = WM_APP + 4;
@@ -158,7 +158,14 @@ fn capture(stop: &AtomicBool, ctl: usize) -> windows::core::Result<()> {
         let fmt = client.GetMixFormat()?;
         let channels = ((*fmt).nChannels as usize).max(1);
         let bits = (*fmt).wBitsPerSample;
-        let init = client.Initialize(AUDCLNT_SHAREMODE_SHARED, 0x0002_0000, 10_000_000, 0, fmt, None);
+        let init = client.Initialize(
+            AUDCLNT_SHAREMODE_SHARED,
+            0x0002_0000,
+            10_000_000,
+            0,
+            fmt,
+            None,
+        );
         CoTaskMemFree(Some(fmt as *const _));
         init?;
         let cap: IAudioCaptureClient = client.GetService()?;
@@ -177,7 +184,14 @@ fn capture(stop: &AtomicBool, ctl: usize) -> windows::core::Result<()> {
                 let mut frames = 0u32;
                 let mut flags = 0u32;
                 cap.GetBuffer(&mut data, &mut frames, &mut flags, None, None)?;
-                push(&mut mono, data, frames as usize, channels, bits, flags & 2 != 0);
+                push(
+                    &mut mono,
+                    data,
+                    frames as usize,
+                    channels,
+                    bits,
+                    flags & 2 != 0,
+                );
                 cap.ReleaseBuffer(frames)?;
                 got = true;
             }

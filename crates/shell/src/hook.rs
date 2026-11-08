@@ -4,8 +4,7 @@ use std::ptr;
 use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-    keybd_event, GetAsyncKeyState, KEYEVENTF_KEYUP, VK_CONTROL, VK_LWIN, VK_MENU, VK_RWIN,
-    VK_SHIFT,
+    keybd_event, GetAsyncKeyState, KEYEVENTF_KEYUP, VK_CONTROL, VK_LWIN, VK_MENU, VK_RWIN, VK_SHIFT,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, PostMessageW, SetWindowsHookExW, UnhookWindowsHookEx, HC_ACTION, HHOOK,
@@ -83,12 +82,7 @@ pub unsafe fn enable(on: bool, target: HWND) {
     let cur = HOOK.with(|h| h.get());
     if on && cur == 0 {
         TARGET.with(|t| t.set(target as usize));
-        let h = SetWindowsHookExW(
-            WH_KEYBOARD_LL,
-            Some(proc),
-            GetModuleHandleW(ptr::null()),
-            0,
-        );
+        let h = SetWindowsHookExW(WH_KEYBOARD_LL, Some(proc), GetModuleHandleW(ptr::null()), 0);
         HOOK.with(|x| x.set(h as usize));
     } else if !on && cur != 0 {
         UnhookWindowsHookEx(cur as HHOOK);
