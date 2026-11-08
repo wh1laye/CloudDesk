@@ -1,0 +1,6 @@
+[package]
+name = "clouddesk-installer"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "clouddesk per-user installer"
