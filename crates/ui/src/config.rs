@@ -13,7 +13,8 @@ pub const KEYS: [&str; 8] = [
     "lockscreen",
 ];
 pub const THEMES: [&str; 11] = [
-    "moss", "grey", "burgundy", "black", "light", "glass", "frost", "ocean", "rose", "mint", "violet",
+    "moss", "grey", "burgundy", "black", "light", "glass", "frost", "ocean", "rose", "mint",
+    "violet",
 ];
 
 #[derive(Clone)]

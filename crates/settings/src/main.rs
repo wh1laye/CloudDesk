@@ -11,19 +11,20 @@ use std::thread;
 
 use clouddesk_ui::config::{dir as config_dir, file_name, Config, THEMES};
 use clouddesk_ui::gfx::{
-    disc, measure, mix, paint, palette, picture, rgrad, rrect, routline, txt, Ctx, R,
+    disc, measure, mix, paint, palette, picture, rgrad, routline, rrect, txt, Ctx, R,
 };
 use clouddesk_ui::gp::Image;
 use clouddesk_ui::{create, init_dpi, open, pump, register, wall, wide, HOST_CLASS};
 use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
 use windows_sys::Win32::Graphics::Gdi::InvalidateRect;
-use windows_sys::Win32::UI::Input::KeyboardAndMouse::{TrackMouseEvent, TME_LEAVE, TRACKMOUSEEVENT};
+use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+    TrackMouseEvent, TME_LEAVE, TRACKMOUSEEVENT,
+};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     AdjustWindowRectEx, DefWindowProcW, FindWindowW, GetSystemMetrics, LoadCursorW, PostMessageW,
     PostQuitMessage, SetCursor, SetForegroundWindow, SetWindowTextW, ShowWindow, IDC_HAND,
-    SM_CXSCREEN, SM_CYSCREEN, SW_SHOW, WM_APP, WM_CLOSE, WM_DESTROY, WM_ERASEBKGND,
-    WM_LBUTTONDOWN, WM_MOUSEMOVE, WM_PAINT, WS_CAPTION, WS_MINIMIZEBOX, WS_OVERLAPPED,
-    WS_SYSMENU,
+    SM_CXSCREEN, SM_CYSCREEN, SW_SHOW, WM_APP, WM_CLOSE, WM_DESTROY, WM_ERASEBKGND, WM_LBUTTONDOWN,
+    WM_MOUSEMOVE, WM_PAINT, WS_CAPTION, WS_MINIMIZEBOX, WS_OVERLAPPED, WS_SYSMENU,
 };
 
 const CLASS: &str = "CloudDeskSettings";
@@ -311,8 +312,22 @@ impl Ui<'_> {
         let hot = self.hot(r, act);
         let w = measure(label, 13, true);
         if primary {
-            rrect(c, r, 16, if hot { mix(p.acc, p.fg, 0.18) } else { p.acc }, 255);
-            txt(c, label, r.0 + (r.2 - w) / 2, r.1 + r.3 / 2, 13, on_accent(p.acc), true);
+            rrect(
+                c,
+                r,
+                16,
+                if hot { mix(p.acc, p.fg, 0.18) } else { p.acc },
+                255,
+            );
+            txt(
+                c,
+                label,
+                r.0 + (r.2 - w) / 2,
+                r.1 + r.3 / 2,
+                13,
+                on_accent(p.acc),
+                true,
+            );
         } else {
             rrect(c, r, 16, p.fg, if hot { 34 } else { 18 });
             txt(c, label, r.0 + (r.2 - w) / 2, r.1 + r.3 / 2, 13, p.fg, true);
@@ -329,7 +344,14 @@ impl Ui<'_> {
         }
         let kx = if on { x + 31 } else { x + 13 };
         disc(c, kx as f32, y as f32 + 14.0, 10.0, (0, 0, 0), 40);
-        disc(c, kx as f32, y as f32 + 13.0, 9.5, (255, 255, 255), if on { 255 } else { 215 });
+        disc(
+            c,
+            kx as f32,
+            y as f32 + 13.0,
+            9.5,
+            (255, 255, 255),
+            if on { 255 } else { 215 },
+        );
     }
 
     unsafe fn row(&mut self, r: R, name: &str, desc: &str, on: bool, live: bool, act: Act) {
@@ -338,7 +360,15 @@ impl Ui<'_> {
         let hot = self.hot(r, act);
         rrect(c, r, 14, p.fg, if hot { 24 } else { 12 });
         let cy = r.1 + r.3 / 2;
-        txt(c, name, r.0 + 20, cy - 9, 15, if live { p.fg } else { p.dim }, true);
+        txt(
+            c,
+            name,
+            r.0 + 20,
+            cy - 9,
+            15,
+            if live { p.fg } else { p.dim },
+            true,
+        );
         txt(c, desc, r.0 + 20, cy + 11, 12, p.dim, false);
         self.switch(r.0 + r.2 - 64, r.1 + (r.3 - 26) / 2, on && live);
     }
@@ -354,7 +384,13 @@ impl Ui<'_> {
         let p = c.pal;
         let hot = self.hot(r, act);
         if on {
-            rrect(c, r, 14, if hot { mix(p.acc, p.fg, 0.18) } else { p.acc }, 255);
+            rrect(
+                c,
+                r,
+                14,
+                if hot { mix(p.acc, p.fg, 0.18) } else { p.acc },
+                255,
+            );
         } else {
             rrect(c, r, 14, p.fg, if hot { 30 } else { 16 });
         }
@@ -387,14 +423,21 @@ unsafe fn sidebar(ui: &mut Ui, s: &St) {
     let running = !host_window().is_null();
     let dot = if running { (60, 210, 120) } else { p.dim };
     disc(c, 40.0, WIN_H as f32 - 82.0, 4.5, dot, 255);
-    let label = if running { "Shell is running" } else { "Shell is stopped" };
+    let label = if running {
+        "Shell is running"
+    } else {
+        "Shell is stopped"
+    };
     txt(c, label, 54, WIN_H - 82, 12, p.dim, false);
     let text = if running { "Stop shell" } else { "Start shell" };
     ui.button((24, WIN_H - 64, 172, 38), text, !running, Act::Shell);
 }
 
 unsafe fn page_components(ui: &mut Ui, s: &St) {
-    ui.head("Components", "Turn parts of CloudDesk on or off. Changes apply instantly.");
+    ui.head(
+        "Components",
+        "Turn parts of CloudDesk on or off. Changes apply instantly.",
+    );
     for (i, (name, desc)) in COMPONENTS.iter().enumerate() {
         let r: R = (CX, 112 + i as i32 * 60, CW, 54);
         ui.row(r, name, desc, s.cfg.comps[i], IMPL[i], Act::Toggle(i));
@@ -402,11 +445,19 @@ unsafe fn page_components(ui: &mut Ui, s: &St) {
 }
 
 unsafe fn page_look(ui: &mut Ui, s: &St) {
-    ui.head("Appearance", "Pick a color theme. The shell and this window follow it.");
+    ui.head(
+        "Appearance",
+        "Pick a color theme. The shell and this window follow it.",
+    );
     let c = ui.c;
     let p = c.pal;
     for (i, n) in THEMES.iter().enumerate() {
-        let r: R = (CX + (i % 5) as i32 * 140, 108 + (i / 5) as i32 * 166, 128, 150);
+        let r: R = (
+            CX + (i % 5) as i32 * 140,
+            108 + (i / 5) as i32 * 166,
+            128,
+            150,
+        );
         let hot = ui.hot(r, Act::Theme(i));
         let tp = palette(n);
         rrect(c, r, 16, p.fg, if hot { 24 } else { 12 });
@@ -422,7 +473,14 @@ unsafe fn page_look(ui: &mut Ui, s: &St) {
         rrect(c, (pr.0 + 8, pr.1 + 8, pr.2 - 16, 12), 12, tp.fg, 60);
         rrect(c, (pr.0 + 10, pr.1 + 36, 56, 8), 8, tp.fg, 230);
         rrect(c, (pr.0 + 10, pr.1 + 52, 36, 6), 6, tp.dim, 230);
-        disc(c, (pr.0 + pr.2 - 24) as f32, (pr.1 + pr.3 - 24) as f32, 10.0, tp.acc, 255);
+        disc(
+            c,
+            (pr.0 + pr.2 - 24) as f32,
+            (pr.1 + pr.3 - 24) as f32,
+            10.0,
+            tp.acc,
+            255,
+        );
         txt(c, &cap(n), r.0 + 12, r.1 + 108, 13, p.fg, true);
         let kind = match tp.glass {
             1 => "Acrylic, dark",
@@ -434,7 +492,10 @@ unsafe fn page_look(ui: &mut Ui, s: &St) {
 }
 
 unsafe fn page_bar(ui: &mut Ui, s: &St) {
-    ui.head("Top bar", "Choose what the bar shows and where. An item lives in one place.");
+    ui.head(
+        "Top bar",
+        "Choose what the bar shows and where. An item lives in one place.",
+    );
     let c = ui.c;
     let p = c.pal;
     for z in 0..3u8 {
@@ -453,25 +514,68 @@ unsafe fn page_bar(ui: &mut Ui, s: &St) {
             x += w + 8;
         }
     }
-    ui.button((CX, 112 + 3 * 146 + 2, 150, 36), "Reset bar", false, Act::BarReset);
-    txt(c, "Up to 6 items per side, shown in the order you switch them on.", CX + 166, 112 + 3 * 146 + 20, 12, p.dim, false);
+    ui.button(
+        (CX, 112 + 3 * 146 + 2, 150, 36),
+        "Reset bar",
+        false,
+        Act::BarReset,
+    );
+    txt(
+        c,
+        "Up to 6 items per side, shown in the order you switch them on.",
+        CX + 166,
+        112 + 3 * 146 + 20,
+        12,
+        p.dim,
+        false,
+    );
 }
 
 unsafe fn page_desktop(ui: &mut Ui, s: &St) {
     ui.head("Desktop", "How CloudDesk sits on top of Windows.");
-    ui.row((CX, 112, CW, 54), "Hide Windows taskbar", "Restored automatically when the shell stops", s.cfg.hide_taskbar, true, Act::Taskbar);
-    ui.row((CX, 172, CW, 54), "Virtual desktops", "Win+1 to Win+9 switch desktops", s.cfg.spaces, true, Act::Spaces);
+    ui.row(
+        (CX, 112, CW, 54),
+        "Hide Windows taskbar",
+        "Restored automatically when the shell stops",
+        s.cfg.hide_taskbar,
+        true,
+        Act::Taskbar,
+    );
+    ui.row(
+        (CX, 172, CW, 54),
+        "Virtual desktops",
+        "Win+1 to Win+9 switch desktops",
+        s.cfg.spaces,
+        true,
+        Act::Spaces,
+    );
     let c = ui.c;
     let p = c.pal;
     let r: R = (CX, 232, CW, 54);
     let hot = ui.hot(r, Act::Contour);
     rrect(c, r, 18, p.fg, if hot { 26 } else { 14 });
     txt(c, "Visualizer style", r.0 + 20, r.1 + 18, 15, p.fg, true);
-    txt(c, "Dots or smooth contour", r.0 + 20, r.1 + 38, 12, p.dim, false);
+    txt(
+        c,
+        "Dots or smooth contour",
+        r.0 + 20,
+        r.1 + 38,
+        12,
+        p.dim,
+        false,
+    );
     let label = if s.cfg.contour { "Contour" } else { "Dots" };
     rrect(c, (r.0 + r.2 - 130, r.1 + 11, 110, 32), 32, p.acc, 255);
     let w = measure(label, 13, true);
-    txt(c, label, r.0 + r.2 - 130 + (110 - w) / 2, r.1 + 27, 13, on_accent(p.acc), true);
+    txt(
+        c,
+        label,
+        r.0 + r.2 - 130 + (110 - w) / 2,
+        r.1 + 27,
+        13,
+        on_accent(p.acc),
+        true,
+    );
     txt(c, "Dock", CX, 326, 15, p.fg, true);
     let mut x = CX;
     for (name, _) in s.cfg.dock.iter() {
@@ -484,15 +588,29 @@ unsafe fn page_desktop(ui: &mut Ui, s: &St) {
         txt(c, &label, x + 15, 363, 13, p.fg, false);
         x += w + 8;
     }
-    txt(c, "Pin apps from search with Ctrl+Enter, remove them with a right click on the dock.", CX, 404, 12, p.dim, false);
+    txt(
+        c,
+        "Pin apps from search with Ctrl+Enter, remove them with a right click on the dock.",
+        CX,
+        404,
+        12,
+        p.dim,
+        false,
+    );
 }
 
 fn wide_path(p: &Path) -> Vec<u16> {
-    p.as_os_str().encode_wide().chain(std::iter::once(0)).collect()
+    p.as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect()
 }
 
 unsafe fn page_wall(ui: &mut Ui, s: &St) {
-    ui.head("Wallpaper", "CloudDesk presets and the wallpapers that ship with Windows.");
+    ui.head(
+        "Wallpaper",
+        "CloudDesk presets and the wallpapers that ship with Windows.",
+    );
     let c = ui.c;
     let p = c.pal;
     let list = wall::list();
@@ -503,7 +621,12 @@ unsafe fn page_wall(ui: &mut Ui, s: &St) {
     let mut more = false;
     for (k, path) in list.iter().skip(start).take(PER_PAGE).enumerate() {
         let idx = start + k;
-        let r: R = (CX + (k % 4) as i32 * 176, 112 + (k / 4) as i32 * 128, 160, 90);
+        let r: R = (
+            CX + (k % 4) as i32 * 176,
+            112 + (k / 4) as i32 * 128,
+            160,
+            90,
+        );
         let hot = ui.hot(r, Act::Wall(idx));
         rrect(c, r, 16, p.fg, 14);
         THUMBS.with(|t| {
@@ -527,7 +650,11 @@ unsafe fn page_wall(ui: &mut Ui, s: &St) {
         if idx == s.cfg.wall_index {
             routline(c, r, 16, 3.0, p.acc, 255);
         }
-        let tag = if wall::is_system(path) { "  Windows" } else { "" };
+        let tag = if wall::is_system(path) {
+            "  Windows"
+        } else {
+            ""
+        };
         let label = format!("{}{}", clip(&file_name(path), 16), tag);
         txt(c, &label, r.0 + 4, r.1 + r.3 + 14, 12, p.dim, false);
     }
@@ -540,8 +667,21 @@ unsafe fn page_wall(ui: &mut Ui, s: &St) {
     let y = 500;
     ui.button((CX, y, 100, 36), "Previous", false, Act::Page(-1));
     ui.button((CX + 110, y, 100, 36), "Next", false, Act::Page(1));
-    txt(c, &format!("{} / {}", page + 1, pages), CX + 224, y + 18, 13, p.dim, false);
-    ui.button((CX + 340, y, 190, 36), "Restore original", false, Act::Restore);
+    txt(
+        c,
+        &format!("{} / {}", page + 1, pages),
+        CX + 224,
+        y + 18,
+        13,
+        p.dim,
+        false,
+    );
+    ui.button(
+        (CX + 340, y, 190, 36),
+        "Restore original",
+        false,
+        Act::Restore,
+    );
     ui.button((CX + 540, y, 148, 36), "Open folder", false, Act::Folder);
 }
 
@@ -553,11 +693,48 @@ unsafe fn page_about(ui: &mut Ui) {
     disc(c, (CX + 46) as f32, 160.0, 18.0, p.acc, 255);
     disc(c, (CX + 46) as f32, 160.0, 7.0, p.bg, 255);
     txt(c, "CloudDesk", CX + 82, 150, 20, p.fg, true);
-    txt(c, &format!("Version {}  ·  MIT license", env!("CARGO_PKG_VERSION")), CX + 82, 176, 12, p.dim, false);
-    txt(c, "Settings and wallpapers live in your profile, nothing is written to HKLM.", CX + 24, 226, 13, p.fg, false);
-    txt(c, "If the shell ever misbehaves, run clouddesk.exe --restore to bring the", CX + 24, 262, 13, p.dim, false);
-    txt(c, "Windows taskbar and your original wallpaper back.", CX + 24, 284, 13, p.dim, false);
-    ui.button((CX, 346, 190, 38), "Open settings folder", false, Act::ConfigFolder);
+    txt(
+        c,
+        &format!("Version {}  ·  MIT license", env!("CARGO_PKG_VERSION")),
+        CX + 82,
+        176,
+        12,
+        p.dim,
+        false,
+    );
+    txt(
+        c,
+        "Settings and wallpapers live in your profile, nothing is written to HKLM.",
+        CX + 24,
+        226,
+        13,
+        p.fg,
+        false,
+    );
+    txt(
+        c,
+        "If the shell ever misbehaves, run clouddesk.exe --restore to bring the",
+        CX + 24,
+        262,
+        13,
+        p.dim,
+        false,
+    );
+    txt(
+        c,
+        "Windows taskbar and your original wallpaper back.",
+        CX + 24,
+        284,
+        13,
+        p.dim,
+        false,
+    );
+    ui.button(
+        (CX, 346, 190, 38),
+        "Open settings folder",
+        false,
+        Act::ConfigFolder,
+    );
 }
 
 unsafe fn draw(c: &Ctx, s: &St) {
@@ -579,7 +756,15 @@ unsafe fn draw(c: &Ctx, s: &St) {
         let w = measure(&s.msg, 13, true) + 32;
         let r: R = (CX + CW - w, WIN_H - 52, w, 34);
         rrect(c, r, 34, c.pal.acc, 255);
-        txt(c, &s.msg, r.0 + 16, r.1 + 17, 13, on_accent(c.pal.acc), true);
+        txt(
+            c,
+            &s.msg,
+            r.0 + 16,
+            r.1 + 17,
+            13,
+            on_accent(c.pal.acc),
+            true,
+        );
     }
     let hits = ui.hits;
     HITS.with(|h| *h.borrow_mut() = hits);
