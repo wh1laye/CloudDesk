@@ -5,9 +5,9 @@ use windows_sys::Win32::Foundation::{HWND, LPARAM, POINT};
 use windows_sys::Win32::Graphics::Gdi::ScreenToClient;
 use windows_sys::Win32::UI::Shell::{SHAppBarMessage, APPBARDATA};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    EnumWindows, FindWindowExW, FindWindowW, GetWindowLongPtrW, SendMessageTimeoutW,
-    SetParent, SetWindowLongPtrW, SetWindowPos, ShowWindow, GWL_STYLE, HWND_BOTTOM,
-    SWP_NOACTIVATE, SWP_SHOWWINDOW, WS_CHILD, WS_POPUP,
+    EnumWindows, FindWindowExW, FindWindowW, GetWindowLongPtrW, SendMessageTimeoutW, SetParent,
+    SetWindowLongPtrW, SetWindowPos, ShowWindow, GWL_STYLE, HWND_BOTTOM, SWP_NOACTIVATE,
+    SWP_SHOWWINDOW, WS_CHILD, WS_POPUP,
 };
 
 use crate::config::Config;
@@ -42,7 +42,12 @@ pub unsafe fn layer() -> HWND {
     }
     let mut res = 0usize;
     SendMessageTimeoutW(progman, SPAWN_WORKER, 0xD, 1, 0, 1000, &mut res);
-    let child = FindWindowExW(progman, ptr::null_mut(), wide("WorkerW").as_ptr(), ptr::null());
+    let child = FindWindowExW(
+        progman,
+        ptr::null_mut(),
+        wide("WorkerW").as_ptr(),
+        ptr::null(),
+    );
     if !child.is_null() {
         return child;
     }
@@ -56,7 +61,11 @@ pub unsafe fn attach(win: HWND, layer: HWND, x: i32, y: i32, w: i32, h: i32) -> 
         return false;
     }
     let style = GetWindowLongPtrW(win, GWL_STYLE);
-    SetWindowLongPtrW(win, GWL_STYLE, (style & !(WS_POPUP as isize)) | WS_CHILD as isize);
+    SetWindowLongPtrW(
+        win,
+        GWL_STYLE,
+        (style & !(WS_POPUP as isize)) | WS_CHILD as isize,
+    );
     if SetParent(win, layer).is_null() {
         SetWindowLongPtrW(win, GWL_STYLE, style);
         return false;

@@ -87,11 +87,7 @@ pub fn layout(cfg: &Config, lw: i32, spaces: usize) -> Layout {
         };
         for k in g {
             let kw = width(*k, spaces);
-            slots.push(Slot {
-                kind: *k,
-                x,
-                w: kw,
-            });
+            slots.push(Slot { kind: *k, x, w: kw });
             x += kw + GAP;
         }
     }
@@ -188,7 +184,11 @@ pub unsafe fn draw(c: &Ctx, l: &Layout, cfg: &Config, st: (usize, usize), hover:
         if hover == Some(i) {
             rrect(c, (s.x - 9, cy - 12, s.w + 18, 24), 24, p.fg, 30);
         }
-        let ink = if hover == Some(i) { p.fg } else { mix(p.fg, p.dim, 0.18) };
+        let ink = if hover == Some(i) {
+            p.fg
+        } else {
+            mix(p.fg, p.dim, 0.18)
+        };
         match s.kind {
             Kind::Settings => gear(c, s.x as f32 + 10.0, cy as f32, ink),
             Kind::Search => magnifier(c, s.x as f32 + 10.0, cy as f32, ink),

@@ -1,5 +1,5 @@
-use std::ffi::c_void;
 use std::env;
+use std::ffi::c_void;
 use std::fs;
 use std::os::windows::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
@@ -61,7 +61,12 @@ pub fn system() -> Vec<PathBuf> {
         let p = e.path();
         if p.is_dir() {
             if let Ok(inner) = fs::read_dir(&p) {
-                v.extend(inner.filter_map(|e| e.ok()).map(|e| e.path()).filter(|q| is_image(q)));
+                v.extend(
+                    inner
+                        .filter_map(|e| e.ok())
+                        .map(|e| e.path())
+                        .filter(|q| is_image(q)),
+                );
             }
         } else if is_image(&p) {
             v.push(p);

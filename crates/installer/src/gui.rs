@@ -103,16 +103,24 @@ unsafe fn draw(c: &Ctx, g: &Gui) {
     text(c, &step, 820 - tw(&step, 3), 24, 3, c.dim);
     match g.page {
         0 => {
-            title(
+            title(c, if g.update { "Update" } else { "Welcome" }, 60, 96, 9);
+            text(
                 c,
-                if g.update { "Update" } else { "Welcome" },
+                "Installs for the current user. No administrator rights.",
                 60,
-                96,
-                9,
+                230,
+                4,
+                c.fg,
             );
-            text(c, "Installs for the current user. No administrator rights.", 60, 230, 4, c.fg);
             text(c, "Every change is backed up first.", 60, 270, 4, c.dim);
-            text(c, "Remove it any time from the same installer.", 60, 310, 4, c.dim);
+            text(
+                c,
+                "Remove it any time from the same installer.",
+                60,
+                310,
+                4,
+                c.dim,
+            );
             if g.update {
                 button(c, BACK, "Remove", false);
             }
@@ -131,13 +139,26 @@ unsafe fn draw(c: &Ctx, g: &Gui) {
             button(c, NEXT, if g.update { "Update" } else { "Install" }, true);
         }
         2 => {
-            title(c, if g.removed { "Removing" } else { "Installing" }, 60, 96, 9);
+            title(
+                c,
+                if g.removed { "Removing" } else { "Installing" },
+                60,
+                96,
+                9,
+            );
             pill(c, 60, 270, 760, 8, c.dark);
             let span = 560;
             let t = (g.tick * 14) % (span * 2);
             let off = if t > span { span * 2 - t } else { t };
             pill(c, 60 + off, 270, 200, 8, c.acc);
-            text(c, "Working. Please do not close this window.", 60, 310, 4, c.dim);
+            text(
+                c,
+                "Working. Please do not close this window.",
+                60,
+                310,
+                4,
+                c.dim,
+            );
         }
         _ => {
             let ok = matches!(g.result, Some(Ok(())));
@@ -152,10 +173,24 @@ unsafe fn draw(c: &Ctx, g: &Gui) {
                     text(c, line, 60, 230 + i as i32 * 34, 4, c.dim);
                 }
             } else if g.removed {
-                text(c, "CloudDesk was removed from this account.", 60, 230, 4, c.fg);
+                text(
+                    c,
+                    "CloudDesk was removed from this account.",
+                    60,
+                    230,
+                    4,
+                    c.fg,
+                );
             } else {
                 text(c, "CloudDesk is installed.", 60, 230, 4, c.fg);
-                text(c, "Open Settings from the menu bar to adjust it.", 60, 270, 4, c.dim);
+                text(
+                    c,
+                    "Open Settings from the menu bar to adjust it.",
+                    60,
+                    270,
+                    4,
+                    c.dim,
+                );
             }
             if ok && !g.removed {
                 button(c, BACK, "Close", false);

@@ -180,13 +180,7 @@ impl Gfx {
         }
     }
 
-    pub fn fill_round_grad(
-        &self,
-        r: (f32, f32, f32, f32),
-        d: f32,
-        top: u32,
-        bottom: u32,
-    ) {
+    pub fn fill_round_grad(&self, r: (f32, f32, f32, f32), d: f32, top: u32, bottom: u32) {
         let mut b: Ptr = ptr::null_mut();
         let p1 = PointF { x: r.0, y: r.1 };
         let p2 = PointF {
