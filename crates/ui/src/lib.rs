@@ -4,6 +4,7 @@ pub mod config;
 pub mod desktop;
 pub mod gfx;
 pub mod glass;
+pub mod gp;
 pub mod wall;
 
 use std::mem::{size_of, zeroed};

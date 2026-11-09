@@ -10,6 +10,7 @@ const DARK_MODE: u32 = 20;
 const CORNERS: u32 = 33;
 const BACKDROP: u32 = 38;
 const ROUND: i32 = 2;
+const SQUARE: i32 = 1;
 const ACRYLIC: i32 = 3;
 
 static LEVEL: AtomicU8 = AtomicU8::new(0);
@@ -29,6 +30,12 @@ unsafe fn attr(hwnd: HWND, id: u32, v: i32) -> bool {
         &v as *const i32 as *const c_void,
         size_of::<i32>() as u32,
     ) >= 0
+}
+
+pub unsafe fn square(hwnd: HWND) {
+    if !hwnd.is_null() {
+        attr(hwnd, CORNERS, SQUARE);
+    }
 }
 
 pub unsafe fn apply(hwnd: HWND) -> bool {

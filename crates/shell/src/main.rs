@@ -10,12 +10,10 @@ use clouddesk_ui::config::Config;
 use clouddesk_ui::gfx::{dot, paint, palette, pill, text, Palette};
 use clouddesk_ui::{create, desktop, init_dpi, now, open, pump, register, wall, wide, HOST_CLASS};
 use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
-use windows_sys::Win32::Graphics::Gdi::{
-    CombineRgn, CreateRectRgn, CreateRoundRectRgn, DeleteObject, InvalidateRect, SetWindowRgn,
-    RGN_OR,
-};
+use windows_sys::Win32::Graphics::Gdi::{CreateRoundRectRgn, InvalidateRect, SetWindowRgn};
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-    RegisterHotKey, UnregisterHotKey, MOD_ALT, MOD_NOREPEAT, VK_SPACE,
+    RegisterHotKey, TrackMouseEvent, UnregisterHotKey, MOD_ALT, MOD_NOREPEAT, TME_LEAVE,
+    TRACKMOUSEEVENT, VK_SPACE,
 };
 use windows_sys::Win32::UI::Shell::{
     SHAppBarMessage, ABE_BOTTOM, ABE_TOP, ABM_NEW, ABM_QUERYPOS, ABM_REMOVE, ABM_SETPOS,
@@ -42,7 +40,7 @@ mod spaces;
 mod visualizer;
 mod widgets;
 
-const BAR_H: i32 = 36;
+const BAR_H: i32 = bar::HEIGHT;
 const DOCK_H: i32 = dock::STRIP_H;
 const WID_W: i32 = 300;
 const WID_H: i32 = 150;
@@ -73,7 +71,8 @@ thread_local! {
 }
 
 thread_local! {
-    static BAR_SHAPE: RefCell<Vec<(i32, i32)>> = const { RefCell::new(Vec::new()) };
+    static BAR_HOVER: Cell<Option<usize>> = const { Cell::new(None) };
+    static BAR_TRACK: Cell<bool> = const { Cell::new(false) };
     static CTL: Cell<usize> = const { Cell::new(0) };
     static HOTKEY: Cell<bool> = const { Cell::new(false) };
     static TASKBAR: Cell<bool> = const { Cell::new(false) };
@@ -199,6 +198,7 @@ unsafe fn make_bar(scale: i32) -> usize {
     if h.is_null() {
         return 0;
     }
+    clouddesk_ui::glass::square(h);
     appbar_add(h, ABE_TOP, BAR_H * scale / 100);
     arm_timer(h, true);
     h as usize
@@ -315,45 +315,42 @@ unsafe fn sync() {
     widgets::sync(cfg.comps[6]);
 }
 
-unsafe fn shape_bar(hwnd: HWND, lay: &bar::Layout, scale: i32) {
-    let changed = BAR_SHAPE.with(|s| {
-        let mut s = s.borrow_mut();
-        if *s == lay.pills {
-            false
-        } else {
-            *s = lay.pills.clone();
-            true
-        }
-    });
-    if !changed {
-        return;
-    }
-    let rgn = CreateRectRgn(0, 0, 0, 0);
-    let r = bar::PILL_H * scale / 100;
-    for (x, w) in &lay.pills {
-        let part = CreateRoundRectRgn(
-            x * scale / 100,
-            bar::PILL_Y * scale / 100,
-            (x + w) * scale / 100 + 1,
-            (bar::PILL_Y + bar::PILL_H) * scale / 100 + 1,
-            r,
-            r,
-        );
-        CombineRgn(rgn, rgn, part, RGN_OR);
-        DeleteObject(part);
-    }
-    SetWindowRgn(hwnd, rgn, 1);
-}
-
 unsafe fn paint_bar(hwnd: HWND) {
     let (cfg, _, _, _, scale) = snap();
     let st = spaces::state();
     let lw = screen().0 * 100 / scale;
     let lay = bar::layout(&cfg, lw, st.0);
-    shape_bar(hwnd, &lay, scale);
+    let hover = BAR_HOVER.with(|h| h.get());
     paint(hwnd, scale, &pal(&cfg), |c, _, _| {
-        bar::draw(c, &lay, &cfg, st)
+        bar::draw(c, &lay, &cfg, st, hover)
     });
+}
+
+unsafe fn bar_move(hwnd: HWND, px: i32) {
+    let (cfg, _, _, _, scale) = snap();
+    let st = spaces::state();
+    let lw = screen().0 * 100 / scale;
+    let lay = bar::layout(&cfg, lw, st.0);
+    let idx = bar::index_at(&lay, px * 100 / scale);
+    if !BAR_TRACK.with(|t| t.replace(true)) {
+        let mut e = TRACKMOUSEEVENT {
+            cbSize: size_of::<TRACKMOUSEEVENT>() as u32,
+            dwFlags: TME_LEAVE,
+            hwndTrack: hwnd,
+            dwHoverTime: 0,
+        };
+        TrackMouseEvent(&mut e);
+    }
+    if BAR_HOVER.with(|h| h.replace(idx)) != idx {
+        InvalidateRect(hwnd, ptr::null(), 0);
+    }
+}
+
+unsafe fn bar_leave(hwnd: HWND) {
+    BAR_TRACK.with(|t| t.set(false));
+    if BAR_HOVER.with(|h| h.replace(None)).is_some() {
+        InvalidateRect(hwnd, ptr::null(), 0);
+    }
 }
 
 unsafe fn bar_click(px: i32) {
@@ -431,6 +428,14 @@ unsafe extern "system" fn bar_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM)
         WM_MOUSEACTIVATE => MA_NOACTIVATE,
         WM_LBUTTONDOWN => {
             bar_click(lo(lp));
+            0
+        }
+        WM_MOUSEMOVE => {
+            bar_move(hwnd, lo(lp));
+            0
+        }
+        0x02A3 => {
+            bar_leave(hwnd);
             0
         }
         WM_TIMER => {
