@@ -12,8 +12,8 @@ pub const KEYS: [&str; 8] = [
     "widgets",
     "lockscreen",
 ];
-pub const THEMES: [&str; 10] = [
-    "grey", "burgundy", "black", "light", "glass", "frost", "ocean", "rose", "mint", "violet",
+pub const THEMES: [&str; 11] = [
+    "moss", "grey", "burgundy", "black", "light", "glass", "frost", "ocean", "rose", "mint", "violet",
 ];
 
 #[derive(Clone)]
@@ -62,7 +62,7 @@ impl Config {
     pub fn new() -> Config {
         Config {
             comps: [true; 8],
-            theme: "glass".into(),
+            theme: "moss".into(),
             contour: false,
             spaces: false,
             hide_taskbar: true,

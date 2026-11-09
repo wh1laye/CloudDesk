@@ -43,6 +43,14 @@ pub fn surface(c: &Ctx) -> HBRUSH {
 
 pub fn palette(name: &str) -> Palette {
     match name {
+        "moss" => Palette {
+            bg: (22, 24, 20),
+            fg: (230, 233, 222),
+            dim: (128, 134, 118),
+            acc: (196, 222, 112),
+            dark: (44, 48, 38),
+            glass: 0,
+        },
         "grey" => Palette {
             bg: (34, 34, 36),
             fg: (236, 236, 236),
@@ -164,17 +172,8 @@ impl Ctx {
 
     pub fn col(&self, b: HBRUSH) -> (u8, u8, u8) {
         let p = &self.pal;
-        let all = [
-            (self.bg, p.bg),
-            (self.fg, p.fg),
-            (self.dim, p.dim),
-            (self.acc, p.acc),
-            (self.dark, p.dark),
-        ];
-        all.iter()
-            .find(|(x, _)| *x == b)
-            .map(|(_, v)| *v)
-            .unwrap_or(p.fg)
+        let all = [(self.bg, p.bg), (self.fg, p.fg), (self.dim, p.dim), (self.acc, p.acc), (self.dark, p.dark)];
+        all.iter().find(|(x, _)| *x == b).map(|(_, v)| *v).unwrap_or(p.fg)
     }
 
     pub fn flush(&self) {
@@ -195,12 +194,8 @@ fn em(cell: i32) -> i32 {
 }
 
 unsafe fn make_font(px: i32) -> *mut core::ffi::c_void {
-    let face = if px >= 28 {
-        "Segoe UI Variable Display"
-    } else {
-        "Segoe UI Variable Text"
-    };
-    let weight = if px >= 28 { 300 } else { 400 };
+    let face = "Consolas";
+    let weight = 400;
     CreateFontW(
         -px,
         0,
@@ -254,12 +249,7 @@ fn color_of(c: &Ctx, b: HBRUSH) -> u32 {
 
 pub unsafe fn dot(c: &Ctx, b: HBRUSH, cx: i32, cy: i32, r: i32) {
     if let Some(g) = &c.gp {
-        g.fill_dot(
-            c.f(cx as f32),
-            c.f(cy as f32),
-            c.f(r as f32),
-            argb(c.col(b), 255),
-        );
+        g.fill_dot(c.f(cx as f32), c.f(cy as f32), c.f(r as f32), argb(c.col(b), 255));
         return;
     }
     SelectObject(c.dc, b);
@@ -279,17 +269,7 @@ pub fn ring(c: &Ctx, cx: f32, cy: f32, r: f32, w: f32, rgb: (u8, u8, u8), a: u8)
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn arc(
-    c: &Ctx,
-    cx: f32,
-    cy: f32,
-    r: f32,
-    start: f32,
-    sweep: f32,
-    w: f32,
-    rgb: (u8, u8, u8),
-    a: u8,
-) {
+pub fn arc(c: &Ctx, cx: f32, cy: f32, r: f32, start: f32, sweep: f32, w: f32, rgb: (u8, u8, u8), a: u8) {
     if let Some(g) = &c.gp {
         g.arc(c.f(cx), c.f(cy), c.f(r), start, sweep, c.f(w), argb(rgb, a));
     }
@@ -297,36 +277,19 @@ pub fn arc(
 
 pub fn stroke(c: &Ctx, p1: (f32, f32), p2: (f32, f32), w: f32, rgb: (u8, u8, u8), a: u8) {
     if let Some(g) = &c.gp {
-        g.line(
-            (c.f(p1.0), c.f(p1.1)),
-            (c.f(p2.0), c.f(p2.1)),
-            c.f(w),
-            argb(rgb, a),
-        );
+        g.line((c.f(p1.0), c.f(p1.1)), (c.f(p2.0), c.f(p2.1)), c.f(w), argb(rgb, a));
     }
 }
 
 pub fn rrect(c: &Ctx, r: R, d: i32, rgb: (u8, u8, u8), a: u8) {
     if let Some(g) = &c.gp {
-        g.fill_round(
-            c.f(r.0 as f32),
-            c.f(r.1 as f32),
-            c.f(r.2 as f32),
-            c.f(r.3 as f32),
-            c.f(d as f32),
-            argb(rgb, a),
-        );
+        g.fill_round(c.f(r.0 as f32), c.f(r.1 as f32), c.f(r.2 as f32), c.f(r.3 as f32), c.f(d as f32), argb(rgb, a));
     }
 }
 
 pub fn rgrad(c: &Ctx, r: R, d: i32, top: (u8, u8, u8), bottom: (u8, u8, u8)) {
     if let Some(g) = &c.gp {
-        let rect = (
-            c.f(r.0 as f32),
-            c.f(r.1 as f32),
-            c.f(r.2 as f32),
-            c.f(r.3 as f32),
-        );
+        let rect = (c.f(r.0 as f32), c.f(r.1 as f32), c.f(r.2 as f32), c.f(r.3 as f32));
         g.fill_round_grad(rect, c.f(d as f32), argb(top, 255), argb(bottom, 255));
     }
 }
@@ -377,17 +340,13 @@ pub unsafe fn text(c: &Ctx, s: &str, x: i32, y: i32, cell: i32, b: HBRUSH) {
 }
 
 unsafe fn font_px(px: i32, bold: bool) -> *mut core::ffi::c_void {
-    let face = if px >= 28 {
-        "Segoe UI Variable Display"
-    } else {
-        "Segoe UI Variable Text"
-    };
+    let face = "Consolas";
     CreateFontW(
         -px,
         0,
         0,
         0,
-        if bold { 600 } else { 400 },
+        if bold { 700 } else { 400 },
         0,
         0,
         0,
@@ -470,14 +429,7 @@ pub unsafe fn toggle(c: &Ctx, x: i32, y: i32, on: bool) {
     let kx = if on { x + 48 } else { x + 16 };
     if c.gp.is_some() {
         disc(c, kx as f32, y as f32 + 16.0, 12.0, (0, 0, 0), 40);
-        disc(
-            c,
-            kx as f32,
-            y as f32 + 15.0,
-            11.0,
-            if on { c.pal.fg } else { c.pal.dim },
-            255,
-        );
+        disc(c, kx as f32, y as f32 + 15.0, 11.0, if on { c.pal.fg } else { c.pal.dim }, 255);
         return;
     }
     dot(c, if on { c.fg } else { c.dim }, kx, y + 15, 11);

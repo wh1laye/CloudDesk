@@ -4,7 +4,7 @@ use std::mem::{size_of, zeroed};
 use std::ptr;
 
 use clouddesk_ui::config::Config;
-use clouddesk_ui::gfx::{paint, pill, surface, text, tw, Palette};
+use clouddesk_ui::gfx::{mix, paint, round, routline, rrect, surface, text, tw, Palette};
 use clouddesk_ui::{wide, HOST_CLASS};
 use windows_sys::Win32::Foundation::{HWND, RECT};
 use windows_sys::Win32::Graphics::Gdi::{CreateRoundRectRgn, InvalidateRect, SetWindowRgn};
@@ -155,7 +155,7 @@ pub unsafe fn draw(hwnd: HWND, scale: i32, pal: &Palette, items: &[(String, Stri
             diff
         });
         if changed {
-            let r = 44 * scale / 100;
+            let r = 28 * scale / 100;
             SetWindowRgn(
                 hwnd,
                 CreateRoundRectRgn(
@@ -175,24 +175,27 @@ pub unsafe fn draw(hwnd: HWND, scale: i32, pal: &Palette, items: &[(String, Stri
             return;
         }
         let (px, pw, pos) = layout(items.len(), lw, mouse);
-        pill(c, px, 0, pw, WIN_H, surface(c));
+        round(c, px, 0, pw, WIN_H, 28, surface(c));
+        routline(c, (px, 0, pw, WIN_H), 28, 1.0, c.pal.fg, 28);
         for (i, &(x, sz)) in pos.iter().enumerate() {
             let y = WIN_H - 8 - sz;
             let icon = icons.get(i).copied().unwrap_or(0);
+            rrect(c, (x, y, sz, sz), 20, mix(c.pal.bg, c.pal.fg, 0.1), 255);
             if icon != 0 {
+                c.flush();
                 DrawIconEx(
                     c.dc,
-                    c.s(x),
-                    c.s(y),
+                    c.s(x + 6),
+                    c.s(y + 6),
                     icon as HICON,
-                    c.s(sz),
-                    c.s(sz),
+                    c.s(sz - 12),
+                    c.s(sz - 12),
                     0,
                     ptr::null_mut(),
                     DI_NORMAL,
                 );
             } else {
-                pill(c, x, y, sz, sz, c.acc);
+                rrect(c, (x, y, sz, sz), 20, c.pal.acc, 255);
                 let first: String = items[i].0.chars().take(1).collect();
                 text(
                     c,
@@ -200,7 +203,7 @@ pub unsafe fn draw(hwnd: HWND, scale: i32, pal: &Palette, items: &[(String, Stri
                     x + (sz - tw(&first, 4)) / 2,
                     y + (sz - 28) / 2,
                     4,
-                    c.fg,
+                    c.bg,
                 );
             }
         }
