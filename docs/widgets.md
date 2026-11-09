@@ -32,3 +32,6 @@ height = 130
 - glass and frost use the windows 11 acrylic backdrop (build 22621 or newer) through dwm; on older builds or when dwm refuses, windows stay black
 - the backdrop is applied when a window is created: after switching to or from glass, restart the shell and the widget host (turn the component off and on)
 - the lock screen, layered windows and the dock stay opaque
+
+- widgets live in the desktop layer behind the icons; negative x anchors the widget to the right screen edge
+- the default memory and cpu widgets are placed on the right side

@@ -49,3 +49,22 @@ pub unsafe fn apply(hwnd: HWND) -> bool {
     };
     DwmExtendFrameIntoClientArea(hwnd, &m) >= 0
 }
+
+const BORDER_COLOR: u32 = 34;
+const CAPTION_COLOR: u32 = 35;
+const TEXT_COLOR: u32 = 36;
+
+fn colorref(t: (u8, u8, u8)) -> i32 {
+    (t.0 as u32 | (t.1 as u32) << 8 | (t.2 as u32) << 16) as i32
+}
+
+pub unsafe fn chrome(hwnd: HWND, bg: (u8, u8, u8), fg: (u8, u8, u8)) {
+    if hwnd.is_null() {
+        return;
+    }
+    let dark = (bg.0 as u32 * 3 + bg.1 as u32 * 6 + bg.2 as u32) / 10 < 128;
+    attr(hwnd, DARK_MODE, dark as i32);
+    attr(hwnd, CAPTION_COLOR, colorref(bg));
+    attr(hwnd, BORDER_COLOR, colorref(bg));
+    attr(hwnd, TEXT_COLOR, colorref(fg));
+}

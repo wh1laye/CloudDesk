@@ -81,7 +81,7 @@ unsafe fn draw(hwnd: HWND) -> bool {
         text(c, &t.date, cx - tw(&t.date, 4) / 2, cy - 60, 4, c.dim);
         pill(c, cx - 180, cy + 10, 360, 56, c.dark);
         if n == 0 {
-            text(c, "PASSWORD", cx - tw("PASSWORD", 3) / 2, cy + 27, 3, c.dim);
+            text(c, "Password", cx - tw("Password", 3) / 2, cy + 27, 3, c.dim);
         } else {
             let shown = n.min(16) as i32;
             for i in 0..shown {
@@ -91,8 +91,8 @@ unsafe fn draw(hwnd: HWND) -> bool {
         if wrong {
             text(
                 c,
-                "WRONG PASSWORD",
-                cx - tw("WRONG PASSWORD", 3) / 2,
+                "Wrong password",
+                cx - tw("Wrong password", 3) / 2,
                 cy + 90,
                 3,
                 c.acc,

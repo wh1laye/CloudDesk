@@ -4,7 +4,8 @@ usage: clouddesk-installer [install|update|uninstall] [--silent] [--dir path] [-
 
 - default dir: %LOCALAPPDATA%\Programs\CloudDesk, no admin rights
 - writes only hkcu: uninstall entry, optional run entry
-- payload: files from the payload folder next to the installer
+- no arguments: opens the setup window (install, update or remove)
+- payload: --payload folder, else a payload folder next to the installer, else the payload embedded in the installer exe (the release Setup exe is self-contained)
 - update moves the old install to a .bak folder and restores it on failure; after success the .bak stays until uninstall, which removes it together with the program
 - uninstall.exe is copied into the install dir; it relaunches from temp to delete its own folder
 - uninstall refuses any folder without the .clouddesk-install marker

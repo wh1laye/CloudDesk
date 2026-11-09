@@ -100,7 +100,7 @@ fn refilter(st: &mut State) {
 }
 
 fn clip(s: &str, n: usize) -> String {
-    s.chars().filter(|c| c.is_ascii()).take(n).collect()
+    s.chars().filter(|c| !c.is_control()).take(n).collect()
 }
 
 unsafe fn launch(hwnd: HWND) {
@@ -203,7 +203,7 @@ unsafe fn draw(hwnd: HWND) -> bool {
     paint(hwnd, scale, &pal, |c, lw, _| {
         dot(c, c.acc, 32, 32, 5);
         if query.is_empty() {
-            text(c, "SEARCH APPS", 52, 22, 3, c.dim);
+            text(c, "Search apps", 52, 22, 3, c.dim);
         } else {
             text(c, &query, 52, 22, 3, c.fg);
         }

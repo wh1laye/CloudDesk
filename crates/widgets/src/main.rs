@@ -11,7 +11,7 @@ use std::time::SystemTime;
 
 use clouddesk_ui::config::{dir, Config};
 use clouddesk_ui::gfx::{dot, paint, palette, pill, text, Ctx, Palette};
-use clouddesk_ui::{create, init_dpi, now, pump, register, wide};
+use clouddesk_ui::{create, desktop, init_dpi, now, pump, register, wide};
 use windows_sys::Win32::Foundation::{CloseHandle, FILETIME, HWND, LPARAM, LRESULT, WPARAM};
 use windows_sys::Win32::Graphics::Gdi::{CreateRoundRectRgn, InvalidateRect, SetWindowRgn};
 use windows_sys::Win32::Storage::FileSystem::GetDiskFreeSpaceExW;
@@ -23,9 +23,10 @@ use windows_sys::Win32::System::Threading::{
     GetSystemTimes, OpenProcess, WaitForSingleObject, PROCESS_SYNCHRONIZE,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    DefWindowProcW, GetWindowLongPtrW, PostQuitMessage, SetTimer, SetWindowLongPtrW, SetWindowPos,
-    GWLP_USERDATA, HWND_BOTTOM, SWP_NOACTIVATE, SWP_SHOWWINDOW, WM_ERASEBKGND, WM_MOUSEACTIVATE,
-    WM_PAINT, WM_TIMER, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_POPUP,
+    DefWindowProcW, GetSystemMetrics, GetWindowLongPtrW, PostQuitMessage, SetTimer,
+    SetWindowLongPtrW, SetWindowPos, GWLP_USERDATA, HWND_BOTTOM, SM_CXSCREEN, SWP_NOACTIVATE,
+    SWP_SHOWWINDOW, WM_ERASEBKGND, WM_MOUSEACTIVATE, WM_PAINT, WM_TIMER, WS_EX_NOACTIVATE,
+    WS_EX_TOOLWINDOW, WS_POPUP,
 };
 
 const CLASS: &str = "CloudDeskUserWidget";
@@ -38,8 +39,12 @@ const WATCH_MS: u32 = 3000;
 const MA_NOACTIVATE: LRESULT = 3;
 
 const SEED_MEMORY: &str =
-    "[widget]\nname = 'MEMORY'\nkind = 'memory'\npermissions = 'system'\nx = 24\ny = 60\n";
+    "[widget]\nname = 'Memory'\nkind = 'memory'\npermissions = 'system'\nx = -24\ny = 220\n";
 const SEED_CPU: &str =
+    "[widget]\nname = 'CPU'\nkind = 'cpu'\npermissions = 'system'\nx = -24\ny = 370\n";
+const OLD_MEMORY: &str =
+    "[widget]\nname = 'MEMORY'\nkind = 'memory'\npermissions = 'system'\nx = 24\ny = 60\n";
+const OLD_CPU: &str =
     "[widget]\nname = 'CPU'\nkind = 'cpu'\npermissions = 'system'\nx = 24\ny = 210\n";
 
 #[derive(Clone, Copy, PartialEq)]
@@ -78,10 +83,9 @@ thread_local! {
 
 fn clean_text(s: &str, max: usize) -> String {
     s.chars()
-        .filter(|c| c.is_ascii_graphic() || *c == ' ')
+        .filter(|c| !c.is_control())
         .take(max)
         .collect::<String>()
-        .to_uppercase()
 }
 
 fn read_fields(path: &Path) -> Option<HashMap<String, String>> {
@@ -145,7 +149,7 @@ fn parse(path: &Path) -> Option<Widget> {
         kind,
         name,
         text: label,
-        x: num(&m, "x", 24, 0, 8000),
+        x: num(&m, "x", -24, -8000, 8000),
         y: num(&m, "y", 60, 0, 8000),
         w: num(&m, "width", 220, 120, 600),
         h: num(&m, "height", 130, 100, 400),
@@ -156,13 +160,19 @@ fn parse(path: &Path) -> Option<Widget> {
 }
 
 fn seed(root: &Path) {
-    if root.exists() {
-        return;
-    }
-    for (name, body) in [("memory", SEED_MEMORY), ("cpu", SEED_CPU)] {
+    let fresh = !root.exists();
+    for (name, body, old) in [
+        ("memory", SEED_MEMORY, OLD_MEMORY),
+        ("cpu", SEED_CPU, OLD_CPU),
+    ] {
         let d = root.join(name);
-        if fs::create_dir_all(&d).is_ok() {
-            let _ = fs::write(d.join("widget.toml"), body);
+        let file = d.join("widget.toml");
+        if fresh {
+            if fs::create_dir_all(&d).is_ok() {
+                let _ = fs::write(&file, body);
+            }
+        } else if fs::read_to_string(&file).map(|t| t == old).unwrap_or(false) {
+            let _ = fs::write(&file, body);
         }
     }
 }
@@ -278,14 +288,14 @@ fn interval(kind: Kind, first: bool) -> u32 {
 
 fn fit(main: &str, lw: i32, lh: i32) -> i32 {
     let by_h = ((lh - 94) / 7).clamp(3, 8);
-    let by_w = (lw - 40) / (6 * main.len().max(1) as i32);
+    let by_w = (lw - 40) / (3 * main.chars().count().max(1) as i32);
     by_h.min(by_w).max(2)
 }
 
 unsafe fn draw(c: &Ctx, w: &Widget, lw: i32, lh: i32) {
     pill(c, 0, 0, lw, lh, clouddesk_ui::gfx::surface(c));
     dot(c, c.acc, 24, 24, 4);
-    let max = ((lw - 50) / 18).max(1) as usize;
+    let max = ((lw - 50) / 9).max(1) as usize;
     let title: String = w.name.chars().take(max).collect();
     text(c, &title, 38, 14, 3, c.dim);
     let (main, sub, bar): (String, String, Option<u32>) = match w.kind {
@@ -307,17 +317,17 @@ unsafe fn draw(c: &Ctx, w: &Widget, lw: i32, lh: i32) {
                 None,
             )
         }
-        Kind::Uptime => (format!("{}H {:02}M", w.value, w.aux), "UPTIME".into(), None),
-        Kind::Disk => (format!("{}%", w.value), "DISK C".into(), Some(w.value)),
-        Kind::Memory => (format!("{}%", w.value), "USED".into(), Some(w.value)),
-        Kind::Cpu => (format!("{}%", w.value), "LOAD".into(), Some(w.value)),
-        Kind::Battery if w.value > 100 => ("--".into(), "NO BATTERY".into(), None),
+        Kind::Uptime => (format!("{}h {:02}m", w.value, w.aux), "Uptime".into(), None),
+        Kind::Disk => (format!("{}%", w.value), "Disk C".into(), Some(w.value)),
+        Kind::Memory => (format!("{}%", w.value), "Used".into(), Some(w.value)),
+        Kind::Cpu => (format!("{}%", w.value), "Load".into(), Some(w.value)),
+        Kind::Battery if w.value > 100 => ("--".into(), "No battery".into(), None),
         Kind::Battery => (
             format!("{}%", w.value),
             if w.aux == 1 {
                 "AC".into()
             } else {
-                "BATTERY".into()
+                "Battery".into()
             },
             Some(w.value),
         ),
@@ -372,7 +382,6 @@ unsafe fn paint_one(hwnd: HWND, i: usize) {
 fn load_theme() {
     let cfg = Config::load();
     let pal = palette(&cfg.theme);
-    clouddesk_ui::glass::set(pal.glass);
     PAL.with(|p| *p.borrow_mut() = Some(pal));
 }
 
@@ -445,6 +454,7 @@ fn parent_pid() -> Option<u32> {
 
 unsafe fn spawn_all(scale: i32) -> bool {
     let count = WIDGETS.with(|ws| ws.borrow().len());
+    let layer = desktop::layer();
     let mut shown = 0;
     for i in 0..count {
         let Some((x, y, w, h, kind)) = WIDGETS.with(|ws| {
@@ -456,6 +466,11 @@ unsafe fn spawn_all(scale: i32) -> bool {
             continue;
         };
         let (pw, ph) = (w * scale / 100, h * scale / 100);
+        let px = if x < 0 {
+            (GetSystemMetrics(SM_CXSCREEN) - pw + x * scale / 100).max(0)
+        } else {
+            x * scale / 100
+        };
         let win = create(
             &wide(CLASS),
             WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
@@ -472,15 +487,17 @@ unsafe fn spawn_all(scale: i32) -> bool {
         SetWindowLongPtrW(win, GWLP_USERDATA, (i + 1) as isize);
         let r = 28 * scale / 100;
         SetWindowRgn(win, CreateRoundRectRgn(0, 0, pw + 1, ph + 1, r, r), 0);
-        SetWindowPos(
-            win,
-            HWND_BOTTOM,
-            x * scale / 100,
-            y * scale / 100,
-            pw,
-            ph,
-            SWP_NOACTIVATE | SWP_SHOWWINDOW,
-        );
+        if !desktop::attach(win, layer, px, y * scale / 100, pw, ph) {
+            SetWindowPos(
+                win,
+                HWND_BOTTOM,
+                px,
+                y * scale / 100,
+                pw,
+                ph,
+                SWP_NOACTIVATE | SWP_SHOWWINDOW,
+            );
+        }
         let ms = interval(kind, true);
         if ms > 0 {
             SetTimer(win, TIMER_DATA, ms, None);

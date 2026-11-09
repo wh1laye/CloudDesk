@@ -1,7 +1,7 @@
 #![allow(clippy::missing_safety_doc)]
 
 pub mod config;
-pub mod font;
+pub mod desktop;
 pub mod gfx;
 pub mod glass;
 pub mod wall;
@@ -22,9 +22,9 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 
 pub const HOST_CLASS: &str = "CloudDeskHost";
 
-const DAYS: [&str; 7] = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+const DAYS: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS: [&str; 12] = [
-    "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
 pub struct Now {

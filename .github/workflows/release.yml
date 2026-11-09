@@ -33,12 +33,24 @@ jobs:
           }
           Copy-Item target/release/clouddesk-installer.exe dist/
           Copy-Item LICENSE, THIRD_PARTY.md dist/payload/
+      - name: embed payload into installer
+        shell: pwsh
+        run: |
+          ./scripts/pack-payload.ps1 -Payload dist/payload -Out dist/payload.bin
+          $env:CLOUDDESK_PAYLOAD = (Resolve-Path dist/payload.bin).Path
+          cargo build --release -p clouddesk-installer
+          if ($LASTEXITCODE -ne 0) { throw 'installer build failed' }
+          Copy-Item target/release/clouddesk-installer.exe dist/clouddesk-installer.exe -Force
+          Remove-Item dist/payload.bin
       - name: installer roundtrip
         shell: pwsh
         run: ./scripts/roundtrip.ps1 -Installer dist/clouddesk-installer.exe -Payload dist/payload
       - name: installer full mode roundtrip
         shell: pwsh
         run: ./scripts/roundtrip-full.ps1 -Installer dist/clouddesk-installer.exe -Payload dist/payload
+      - name: installer embedded roundtrip
+        shell: pwsh
+        run: ./scripts/roundtrip-embedded.ps1 -Installer dist/clouddesk-installer.exe
       - name: package
         shell: pwsh
         run: |

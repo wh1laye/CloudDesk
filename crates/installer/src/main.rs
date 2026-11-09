@@ -1,3 +1,6 @@
+mod gui;
+mod payload;
+
 use std::cell::RefCell;
 use std::env;
 use std::fs;
@@ -575,13 +578,40 @@ fn temp_file(name: &str) -> PathBuf {
 
 fn install(o: &Opts, log: &Log, update: bool) -> Result<(), String> {
     let exe = ctx(env::current_exe(), "current exe")?;
+    let mut staged: Option<PathBuf> = None;
     let payload = match &o.payload {
         Some(p) => p.clone(),
-        None => exe
-            .parent()
-            .map(|p| p.join("payload"))
-            .ok_or("cannot locate installer directory")?,
+        None => {
+            let side = exe
+                .parent()
+                .map(|p| p.join("payload"))
+                .filter(|p| p.is_dir());
+            match side {
+                Some(p) => p,
+                None if payload::embedded() => {
+                    let t = temp_file(&format!("clouddesk-payload-{}", std::process::id()));
+                    payload::extract(&t)?;
+                    staged = Some(t.clone());
+                    t
+                }
+                None => return Err("payload not found".into()),
+            }
+        }
     };
+    let r = install_from(o, log, update, &exe, &payload);
+    if let Some(t) = staged {
+        let _ = remove_tree(&t);
+    }
+    r
+}
+
+fn install_from(
+    o: &Opts,
+    log: &Log,
+    update: bool,
+    exe: &Path,
+    payload: &Path,
+) -> Result<(), String> {
     if !payload.is_dir() {
         return Err(format!("payload not found: {}", payload.display()));
     }
@@ -597,7 +627,7 @@ fn install(o: &Opts, log: &Log, update: bool) -> Result<(), String> {
             dir.display()
         ));
     }
-    let size = dir_size(&payload)?;
+    let size = dir_size(payload)?;
     if !o.skip_checks {
         preflight(&dir, size, log)?;
     }
@@ -621,7 +651,7 @@ fn install(o: &Opts, log: &Log, update: bool) -> Result<(), String> {
         had_install: had,
         ..State::default()
     };
-    match apply(o, log, &dir, &exe, &payload, size, &mut st) {
+    match apply(o, log, &dir, exe, payload, size, &mut st) {
         Ok(()) => {
             if let Some(b) = &st.bak {
                 log.say(&format!("previous version kept in {}", b.display()));
@@ -750,6 +780,13 @@ fn run() -> Result<(), String> {
 }
 
 fn main() {
+    if env::args().len() == 1 {
+        let code = match gui::run() {
+            Ok(()) => 0,
+            Err(_) => 1,
+        };
+        std::process::exit(code);
+    }
     let code = match run() {
         Ok(()) => 0,
         Err(_) => 1,

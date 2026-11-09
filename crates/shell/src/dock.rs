@@ -4,10 +4,10 @@ use std::mem::{size_of, zeroed};
 use std::ptr;
 
 use clouddesk_ui::config::Config;
-use clouddesk_ui::gfx::{paint, pill, text, Palette};
+use clouddesk_ui::gfx::{paint, pill, surface, text, tw, Palette};
 use clouddesk_ui::{wide, HOST_CLASS};
 use windows_sys::Win32::Foundation::{HWND, RECT};
-use windows_sys::Win32::Graphics::Gdi::InvalidateRect;
+use windows_sys::Win32::Graphics::Gdi::{CreateRoundRectRgn, InvalidateRect, SetWindowRgn};
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     TrackMouseEvent, TME_LEAVE, TRACKMOUSEEVENT,
 };
@@ -18,7 +18,6 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     SWP_NOACTIVATE, SWP_SHOWWINDOW, WM_APP,
 };
 
-pub const KEY: (u8, u8, u8) = (255, 0, 255);
 pub const WIN_H: i32 = 76;
 pub const STRIP_H: i32 = 88;
 
@@ -35,6 +34,7 @@ struct Dock {
     icons: Vec<usize>,
     mouse: Option<i32>,
     tracking: bool,
+    shape: (i32, i32, i32),
 }
 
 thread_local! {
@@ -44,6 +44,7 @@ thread_local! {
             icons: Vec::new(),
             mouse: None,
             tracking: false,
+            shape: (0, 0, 0),
         })
     };
 }
@@ -142,13 +143,39 @@ pub unsafe fn draw(hwnd: HWND, scale: i32, pal: &Palette, items: &[(String, Stri
         }
         (d.icons.clone(), d.mouse)
     });
-    let keyed = Palette { bg: KEY, ..*pal };
-    paint(hwnd, scale, &keyed, |c, lw, _| {
+    let mut rc: RECT = zeroed();
+    GetClientRect(hwnd, &mut rc);
+    if !items.is_empty() {
+        let (rx, rw, _) = layout(items.len(), rc.right * 100 / scale, mouse);
+        let shape = (rx, rw, scale);
+        let changed = DK.with(|d| {
+            let mut d = d.borrow_mut();
+            let diff = d.shape != shape;
+            d.shape = shape;
+            diff
+        });
+        if changed {
+            let r = 44 * scale / 100;
+            SetWindowRgn(
+                hwnd,
+                CreateRoundRectRgn(
+                    rx * scale / 100,
+                    0,
+                    (rx + rw) * scale / 100 + 1,
+                    WIN_H * scale / 100 + 1,
+                    r,
+                    r,
+                ),
+                1,
+            );
+        }
+    }
+    paint(hwnd, scale, pal, |c, lw, _| {
         if items.is_empty() {
             return;
         }
         let (px, pw, pos) = layout(items.len(), lw, mouse);
-        pill(c, px, 0, pw, WIN_H, c.dark);
+        pill(c, px, 0, pw, WIN_H, surface(c));
         for (i, &(x, sz)) in pos.iter().enumerate() {
             let y = WIN_H - 8 - sz;
             let icon = icons.get(i).copied().unwrap_or(0);
@@ -167,7 +194,14 @@ pub unsafe fn draw(hwnd: HWND, scale: i32, pal: &Palette, items: &[(String, Stri
             } else {
                 pill(c, x, y, sz, sz, c.acc);
                 let first: String = items[i].0.chars().take(1).collect();
-                text(c, &first, x + (sz - 24) / 2, y + (sz - 28) / 2, 4, c.fg);
+                text(
+                    c,
+                    &first,
+                    x + (sz - tw(&first, 4)) / 2,
+                    y + (sz - 28) / 2,
+                    4,
+                    c.fg,
+                );
             }
         }
     });

@@ -138,7 +138,7 @@ fn send(cmd: Cmd) {
 }
 
 fn clip(s: &str, n: usize) -> String {
-    s.chars().filter(|c| c.is_ascii()).take(n).collect()
+    s.chars().filter(|c| !c.is_control()).take(n).collect()
 }
 
 unsafe fn tri(c: &Ctx, x: i32, y: i32, d: i32) {
@@ -167,8 +167,8 @@ unsafe fn draw(hwnd: HWND) -> bool {
     });
     paint(hwnd, scale, &pal, |c, _, _| {
         dot(c, if m.playing { c.acc } else { c.dim }, 32, 32, 7);
-        text(c, &clip(&m.title, 20), 52, 14, 2, c.fg);
-        text(c, &clip(&m.artist, 20), 52, 36, 2, c.dim);
+        text(c, &clip(&m.title, 20), 52, 10, 3, c.fg);
+        text(c, &clip(&m.artist, 20), 52, 35, 2, c.dim);
         tri(c, 315, 32, -1);
         tri(c, 351, 32, 1);
         if m.playing {

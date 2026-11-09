@@ -6,7 +6,7 @@ use std::ptr;
 use std::thread;
 
 use clouddesk_ui::config::{file_name, Config, THEMES};
-use clouddesk_ui::gfx::{button, dot, paint, palette, text, title, toggle, tw, Ctx, R};
+use clouddesk_ui::gfx::{button, dot, fill, paint, palette, pill, text, title, toggle, Ctx, R};
 use clouddesk_ui::{create, init_dpi, open, pump, register, wall, wide, HOST_CLASS};
 use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
 use windows_sys::Win32::Graphics::Gdi::InvalidateRect;
@@ -19,25 +19,24 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 
 const CLASS: &str = "CloudDeskSettings";
 const NAMES: [&str; 8] = [
-    "DESKTOP",
-    "ISLAND",
-    "SEARCH",
-    "VISUALIZER",
-    "COLORS",
-    "MUSIC",
-    "WIDGETS",
-    "LOCK",
+    "Desktop",
+    "Island",
+    "Search",
+    "Visualizer",
+    "Colors",
+    "Music",
+    "Widgets",
+    "Lock screen",
 ];
 const IMPL: [bool; 8] = [true, true, true, true, true, false, true, true];
-const VIS_MODE: R = (50, 392, 360, 44);
-const SPACES_BTN: R = (440, 392, 360, 44);
-const TABS: [&str; 3] = ["SWITCHES", "LOOK", "WALLPAPER"];
-const START: R = (540, 450, 140, 44);
-const STOP: R = (700, 450, 140, 44);
-const PREV: R = (60, 300, 140, 48);
-const NEXT: R = (220, 300, 140, 48);
-const RESTORE: R = (380, 300, 260, 48);
-const FOLDER: R = (60, 370, 220, 48);
+const TABS: [&str; 4] = ["Components", "Look", "Desktop", "Wallpaper"];
+const START: R = (16, 440, 168, 36);
+const STOP: R = (16, 484, 168, 36);
+const PREV: R = (232, 130, 140, 44);
+const NEXT: R = (388, 130, 140, 44);
+const RESTORE: R = (232, 190, 220, 44);
+const FOLDER: R = (468, 190, 180, 44);
+const VIS_BTN: R = (690, 192, 150, 36);
 
 #[derive(Clone)]
 struct St {
@@ -63,6 +62,7 @@ enum Act {
     Theme(usize),
     Mode,
     Spaces,
+    Taskbar,
     Wall(i32),
     Restore,
     Folder,
@@ -71,8 +71,15 @@ enum Act {
 }
 
 fn row(i: usize) -> R {
-    let i = i as i32;
-    (50 + (i / 4) * 400, 126 + (i % 4) * 64, 360, 56)
+    (232, 84 + i as i32 * 50, 608, 44)
+}
+
+fn card(i: usize) -> R {
+    (232 + (i % 4) as i32 * 152, 84 + (i / 4) as i32 * 132, 148, 92)
+}
+
+fn tab_rect(i: usize) -> R {
+    (16, 96 + i as i32 * 48, 168, 40)
 }
 
 fn hit(r: R, x: i32, y: i32) -> bool {
@@ -86,37 +93,32 @@ fn decide(tab: u8, x: i32, y: i32) -> Act {
     if hit(STOP, x, y) {
         return Act::Stop;
     }
-    for i in 0..3i32 {
-        if hit((60 + i * 190, 66, 170, 36), x, y) {
-            return Act::Tab(i as u8);
-        }
+    if let Some(i) = (0..TABS.len()).find(|&i| hit(tab_rect(i), x, y)) {
+        return Act::Tab(i as u8);
     }
     match tab {
         0 => {
-            if hit(VIS_MODE, x, y) {
-                return Act::Mode;
-            }
-            if hit(SPACES_BTN, x, y) {
-                return Act::Spaces;
-            }
             if let Some(i) = (0..8usize).find(|&i| hit(row(i), x, y)) {
                 return Act::Toggle(i);
             }
         }
         1 => {
             if let Some(i) = (0..THEMES.len()).find(|&i| {
-                hit(
-                    (
-                        60 + (i % 4) as i32 * 190,
-                        220 + (i / 4) as i32 * 70,
-                        170,
-                        56,
-                    ),
-                    x,
-                    y,
-                )
+                let r = card(i);
+                hit((r.0, r.1, r.2, r.3 + 28), x, y)
             }) {
                 return Act::Theme(i);
+            }
+        }
+        2 => {
+            if hit(row(0), x, y) {
+                return Act::Taskbar;
+            }
+            if hit(row(1), x, y) {
+                return Act::Spaces;
+            }
+            if hit(row(2), x, y) {
+                return Act::Mode;
             }
         }
         _ => {
@@ -183,7 +185,15 @@ unsafe fn click(hwnd: HWND, px: i32, py: i32) {
             });
             persist(&cfg);
         }
-        Act::Toggle(_) => set_msg("NOT BUILT YET"),
+        Act::Toggle(_) => set_msg("Not built yet"),
+        Act::Taskbar => {
+            let cfg = ST.with(|s| {
+                let mut s = s.borrow_mut();
+                s.cfg.hide_taskbar = !s.cfg.hide_taskbar;
+                s.cfg.clone()
+            });
+            persist(&cfg);
+        }
         Act::Spaces => {
             let cfg = ST.with(|s| {
                 let mut s = s.borrow_mut();
@@ -244,107 +254,106 @@ unsafe fn click(hwnd: HWND, px: i32, py: i32) {
     InvalidateRect(hwnd, ptr::null(), 0);
 }
 
+fn cap(s: &str) -> String {
+    let mut ch = s.chars();
+    match ch.next() {
+        Some(f) => f.to_uppercase().collect::<String>() + ch.as_str(),
+        None => String::new(),
+    }
+}
+
+unsafe fn switch_row(c: &Ctx, i: usize, label: &str, on: bool, live: bool) {
+    let r = row(i);
+    text(c, label, r.0 + 8, r.1 + 8, 4, if live { c.fg } else { c.dim });
+    toggle(c, r.0 + r.2 - 72, r.1 + 6, live && on);
+    pill(c, r.0, r.1 + r.3 + 2, r.2, 2, c.dark);
+}
+
 unsafe fn draw(c: &Ctx, s: &St) {
-    dot(c, c.acc, 46, 38, 4);
-    text(c, "CLOUDDESK", 60, 28, 3, c.dim);
-    text(c, "SETTINGS", 820 - tw("SETTINGS", 3), 28, 3, c.dim);
+    dot(c, c.acc, 36, 38, 6);
+    text(c, "CloudDesk", 52, 24, 4, c.fg);
     for (i, n) in TABS.iter().enumerate() {
-        button(
-            c,
-            (60 + i as i32 * 190, 66, 170, 36),
-            n,
-            s.tab as usize == i,
-        );
+        let r = tab_rect(i);
+        let on = s.tab as usize == i;
+        if on {
+            pill(c, r.0, r.1, r.2, r.3, c.dark);
+        }
+        text(c, n, r.0 + 18, r.1 + 8, 3, if on { c.fg } else { c.dim });
     }
     match s.tab {
         0 => {
+            title(c, "Components", 232, 22, 5);
             for (i, name) in NAMES.iter().enumerate() {
-                let r = row(i);
-                text(
-                    c,
-                    name,
-                    r.0 + 10,
-                    r.1 + 16,
-                    3,
-                    if IMPL[i] { c.fg } else { c.dim },
-                );
-                toggle(c, r.0 + 250, r.1 + 12, IMPL[i] && s.cfg.comps[i]);
+                switch_row(c, i, name, s.cfg.comps[i], IMPL[i]);
             }
-            let mode = if s.cfg.contour {
-                "VISUALIZER: CONTOUR"
-            } else {
-                "VISUALIZER: DOTS"
-            };
-            button(c, VIS_MODE, mode, false);
-            let sp = if s.cfg.spaces {
-                "SPACES: ON"
-            } else {
-                "SPACES: OFF"
-            };
-            button(c, SPACES_BTN, sp, s.cfg.spaces);
         }
         1 => {
-            title(c, "YOUR COLORS", 60, 130, 6);
+            title(c, "Look", 232, 22, 5);
             for (i, n) in THEMES.iter().enumerate() {
-                button(
-                    c,
-                    (
-                        60 + (i % 4) as i32 * 190,
-                        220 + (i / 4) as i32 * 70,
-                        170,
-                        56,
-                    ),
-                    &n.to_uppercase(),
-                    s.cfg.theme == *n,
-                );
-            }
-            if !s.cfg.comps[4] {
-                text(c, "COLORS SWITCH IS OFF", 60, 430, 3, c.dim);
+                let r = card(i);
+                let p = palette(n);
+                let sel = s.cfg.theme == *n;
+                fill(c, r.0, r.1, r.2, r.3, 26, if sel { p.acc } else { p.dark });
+                fill(c, r.0 + 4, r.1 + 4, r.2 - 8, r.3 - 8, 22, p.bg);
+                fill(c, r.0 + 18, r.1 + 22, 64, 8, 8, p.fg);
+                fill(c, r.0 + 18, r.1 + 40, 40, 6, 6, p.dim);
+                fill(c, r.0 + r.2 - 44, r.1 + r.3 - 38, 24, 24, 24, p.acc);
+                text(c, &cap(n), r.0 + 6, r.1 + r.3 + 4, 3, if sel { c.fg } else { c.dim });
             }
         }
+        2 => {
+            title(c, "Desktop", 232, 22, 5);
+            switch_row(c, 0, "Hide Windows taskbar", s.cfg.hide_taskbar, true);
+            switch_row(c, 1, "Virtual desktops (Win + 1..9)", s.cfg.spaces, true);
+            let r = row(2);
+            text(c, "Visualizer style", r.0 + 8, r.1 + 8, 4, c.fg);
+            button(
+                c,
+                (VIS_BTN.0, r.1 + 4, VIS_BTN.2, VIS_BTN.3),
+                if s.cfg.contour { "Contour" } else { "Dots" },
+                false,
+            );
+        }
         _ => {
-            title(c, "WALLPAPERS", 60, 130, 6);
+            title(c, "Wallpaper", 232, 22, 5);
             let l = wall::list();
             let name = l
                 .get(s.cfg.wall_index)
                 .map(|p| file_name(p))
-                .unwrap_or_else(|| "NONE".to_string());
+                .unwrap_or_else(|| "None".to_string());
             let line = format!(
-                "{}/{} {}",
+                "{} / {}   {}",
                 s.cfg.wall_index.min(l.len().saturating_sub(1)) + 1,
                 l.len(),
                 name
             );
-            text(c, &line, 60, 224, 4, c.fg);
-            button(c, PREV, "PREV", false);
-            button(c, NEXT, "NEXT", false);
-            button(c, RESTORE, "RESTORE ORIGINAL", false);
-            button(c, FOLDER, "OPEN FOLDER", false);
-            text(c, "DROP BMP JPG PNG INTO THE FOLDER.", 60, 430, 3, c.dim);
+            text(c, &line, 232, 84, 4, c.fg);
+            button(c, PREV, "Previous", false);
+            button(c, NEXT, "Next", false);
+            button(c, RESTORE, "Restore original", false);
+            button(c, FOLDER, "Open folder", false);
+            text(c, "Put BMP, JPG or PNG files into the folder.", 232, 262, 3, c.dim);
         }
     }
     let running = !host_window().is_null();
     let status = if s.msg.is_empty() {
         if running {
-            "HOST: RUNNING"
+            "Shell is running"
         } else {
-            "HOST: STOPPED"
+            "Shell is stopped"
         }
     } else {
         s.msg.as_str()
     };
-    text(c, status, 60, 462, 3, c.dim);
-    button(c, START, "START", !running);
-    button(c, STOP, "STOP", false);
+    text(c, status, 232, 490, 3, c.dim);
+    button(c, START, "Start", !running);
+    button(c, STOP, "Stop", false);
 }
 
 unsafe fn paint_win(hwnd: HWND) {
     let s = ST.with(|s| s.borrow().clone());
-    let pal = palette(if s.cfg.comps[4] {
-        &s.cfg.theme
-    } else {
-        "black"
-    });
+    let pal = palette(&s.cfg.theme);
+    clouddesk_ui::glass::chrome(hwnd, pal.bg, pal.fg);
     paint(hwnd, s.scale, &pal, |c, _, _| draw(c, &s));
 }
 
@@ -374,7 +383,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
 fn main() {
     unsafe {
         let boot = Config::load();
-        clouddesk_ui::glass::set(palette(if boot.comps[4] { &boot.theme } else { "black" }).glass);
+        clouddesk_ui::glass::set(palette(&boot.theme).glass);
         let class = wide(CLASS);
         let existing = FindWindowW(class.as_ptr(), ptr::null());
         if !existing.is_null() {
@@ -395,7 +404,7 @@ fn main() {
             left: 0,
             top: 0,
             right: 880 * scale / 100,
-            bottom: 520 * scale / 100,
+            bottom: 540 * scale / 100,
         };
         AdjustWindowRectEx(&mut rc, style, 0, 0);
         let ww = rc.right - rc.left;

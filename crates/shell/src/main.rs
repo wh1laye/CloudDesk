@@ -8,7 +8,7 @@ use std::thread;
 
 use clouddesk_ui::config::Config;
 use clouddesk_ui::gfx::{dot, paint, palette, pill, text, Palette};
-use clouddesk_ui::{create, init_dpi, now, open, pump, register, wall, wide, HOST_CLASS};
+use clouddesk_ui::{create, desktop, init_dpi, now, open, pump, register, wall, wide, HOST_CLASS};
 use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
 use windows_sys::Win32::Graphics::Gdi::{
     CombineRgn, CreateRectRgn, CreateRoundRectRgn, DeleteObject, InvalidateRect, SetWindowRgn,
@@ -22,16 +22,15 @@ use windows_sys::Win32::UI::Shell::{
     ABN_FULLSCREENAPP, APPBARDATA,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    DefWindowProcW, DestroyWindow, GetSystemMetrics, PostQuitMessage, SetTimer, SetWindowPos,
+    DefWindowProcW, DestroyWindow, GetSystemMetrics, KillTimer, PostQuitMessage, SetTimer,
+    SetWindowPos,
     HWND_BOTTOM, HWND_TOPMOST, SM_CXSCREEN, SM_CYSCREEN, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
     SWP_SHOWWINDOW, WM_APP, WM_CLOSE, WM_DESTROY, WM_ERASEBKGND, WM_HOTKEY, WM_LBUTTONDOWN,
     WM_MOUSEACTIVATE, WM_PAINT, WM_TIMER, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
     WS_POPUP,
 };
 
-use windows_sys::Win32::UI::WindowsAndMessaging::{
-    SetLayeredWindowAttributes, LWA_COLORKEY, WM_MOUSEMOVE, WM_RBUTTONDOWN, WS_EX_LAYERED,
-};
+use windows_sys::Win32::UI::WindowsAndMessaging::{WM_MOUSEMOVE, WM_RBUTTONDOWN};
 
 mod bar;
 mod dock;
@@ -49,6 +48,7 @@ const WID_W: i32 = 300;
 const WID_H: i32 = 150;
 const WM_RELOAD: u32 = WM_APP + 1;
 const WM_BAR: u32 = WM_APP + 2;
+const TIMER_TASKBAR: usize = 2;
 const BAR_CLASS: &str = "CloudDeskBar";
 const DOCK_CLASS: &str = "CloudDeskDock";
 const WID_CLASS: &str = "CloudDeskWidget";
@@ -76,6 +76,7 @@ thread_local! {
     static BAR_SHAPE: RefCell<Vec<(i32, i32)>> = const { RefCell::new(Vec::new()) };
     static CTL: Cell<usize> = const { Cell::new(0) };
     static HOTKEY: Cell<bool> = const { Cell::new(false) };
+    static TASKBAR: Cell<bool> = const { Cell::new(false) };
 }
 
 unsafe fn sync_hotkey(on: bool, spaces: bool) {
@@ -103,7 +104,7 @@ fn snap() -> (Config, usize, usize, usize, i32) {
 }
 
 fn pal(c: &Config) -> Palette {
-    palette(if c.comps[4] { &c.theme } else { "black" })
+    palette(&c.theme)
 }
 
 fn settings_exe() -> String {
@@ -206,7 +207,7 @@ unsafe fn make_bar(scale: i32) -> usize {
 unsafe fn make_dock(scale: i32) -> usize {
     let h = create(
         &wide(DOCK_CLASS),
-        WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_LAYERED,
+        WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_NOACTIVATE,
         WS_POPUP,
         0,
         0,
@@ -216,7 +217,6 @@ unsafe fn make_dock(scale: i32) -> usize {
     if h.is_null() {
         return 0;
     }
-    SetLayeredWindowAttributes(h, 0x00FF00FF, 255, LWA_COLORKEY);
     appbar_add(h, ABE_BOTTOM, DOCK_H * scale / 100);
     h as usize
 }
@@ -240,17 +240,35 @@ unsafe fn make_wid(scale: i32) -> usize {
     SetWindowRgn(win, CreateRoundRectRgn(0, 0, w + 1, h + 1, r, r), 0);
     let x = screen().0 - w - 24 * scale / 100;
     let y = (BAR_H + 24) * scale / 100;
-    SetWindowPos(
-        win,
-        HWND_BOTTOM,
-        x,
-        y,
-        w,
-        h,
-        SWP_NOACTIVATE | SWP_SHOWWINDOW,
-    );
+    if !desktop::attach(win, desktop::layer(), x, y, w, h) {
+        SetWindowPos(
+            win,
+            HWND_BOTTOM,
+            x,
+            y,
+            w,
+            h,
+            SWP_NOACTIVATE | SWP_SHOWWINDOW,
+        );
+    }
     arm_timer(win, true);
     win as usize
+}
+
+unsafe fn sync_taskbar(on: bool, ctl: HWND) {
+    if ctl.is_null() {
+        return;
+    }
+    let active = TASKBAR.with(|t| t.get());
+    if on && !active {
+        desktop::hide_taskbar();
+        SetTimer(ctl, TIMER_TASKBAR, 700, None);
+        TASKBAR.with(|t| t.set(true));
+    } else if !on && active {
+        KillTimer(ctl, TIMER_TASKBAR);
+        desktop::restore_taskbar();
+        TASKBAR.with(|t| t.set(false));
+    }
 }
 
 unsafe fn sync() {
@@ -287,6 +305,7 @@ unsafe fn sync() {
         dock::place(nd as HWND, scale, cfg.dock.len());
     }
     let ctl = CTL.with(|c| c.get()) as HWND;
+    sync_taskbar(cfg.comps[0] && cfg.hide_taskbar, ctl);
     island::sync(cfg.comps[1], pal(&cfg), scale, ctl);
     visualizer::set_contour(cfg.contour);
     visualizer::sync(cfg.comps[3], pal(&cfg), scale, ctl);
@@ -492,6 +511,10 @@ unsafe extern "system" fn ctl_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM)
             sync();
             0
         }
+        WM_TIMER if wp == TIMER_TASKBAR => {
+            desktop::keep_hidden();
+            0
+        }
         spaces::WM_SPACES => {
             let (_, bar, _, _, _) = snap();
             if bar != 0 {
@@ -523,6 +546,9 @@ unsafe extern "system" fn ctl_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM)
             0
         }
         WM_DESTROY => {
+            if TASKBAR.with(|t| t.get()) {
+                desktop::restore_taskbar();
+            }
             let (_, bar, dock, wid, _) = snap();
             for w in [bar, dock, wid] {
                 if w != 0 {
@@ -539,6 +565,7 @@ unsafe extern "system" fn ctl_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM)
 fn main() {
     if env::args().any(|a| a == "--restore") {
         let c = Config::load();
+        unsafe { desktop::restore_taskbar() };
         if wall::restore(&c).is_err() {
             std::process::exit(1);
         }

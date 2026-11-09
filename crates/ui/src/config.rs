@@ -22,6 +22,8 @@ pub struct Config {
     pub theme: String,
     pub contour: bool,
     pub spaces: bool,
+    pub hide_taskbar: bool,
+    pub taskbar_autohide: Option<bool>,
     pub bar_left: String,
     pub bar_center: String,
     pub bar_right: String,
@@ -60,9 +62,11 @@ impl Config {
     pub fn new() -> Config {
         Config {
             comps: [true; 8],
-            theme: "black".into(),
+            theme: "glass".into(),
             contour: false,
             spaces: false,
+            hide_taskbar: true,
+            taskbar_autohide: None,
             bar_left: "settings,search,spaces".into(),
             bar_center: "clock".into(),
             bar_right: "wall,battery".into(),
@@ -101,6 +105,8 @@ impl Config {
                 }
                 ("theme", "name") if THEMES.contains(&v) => c.theme = v.to_string(),
                 ("spaces", "enabled") => c.spaces = v == "true",
+                ("taskbar", "hide") => c.hide_taskbar = v == "true",
+                ("taskbar", "autohide") => c.taskbar_autohide = Some(v == "true"),
                 ("bar", "left") => c.bar_left = clean(v),
                 ("bar", "center") => c.bar_center = clean(v),
                 ("bar", "right") => c.bar_right = clean(v),
@@ -142,6 +148,10 @@ impl Config {
             clean(&self.bar_center),
             clean(&self.bar_right)
         ));
+        s.push_str(&format!("\n[taskbar]\nhide = {}\n", self.hide_taskbar));
+        if let Some(a) = self.taskbar_autohide {
+            s.push_str(&format!("autohide = {a}\n"));
+        }
         s.push_str(&format!("\n[wallpaper]\nindex = {}\n", self.wall_index));
         if let Some(o) = &self.wall_original {
             s.push_str(&format!("original = '{}'\n", clean(o)));

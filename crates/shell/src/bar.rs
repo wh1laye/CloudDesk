@@ -61,11 +61,11 @@ fn width(k: Kind, spaces: usize) -> i32 {
     match k {
         Kind::Settings | Kind::Search => 28,
         Kind::Spaces => spaces.max(1) as i32 * DOT_STEP,
-        Kind::Clock => tw("SUN 08 NOV 00:00", 3),
+        Kind::Clock => tw("Wed 28 May 00:00", 3),
         Kind::Time => tw("00:00", 3),
         Kind::Battery => tw("100%", 3),
-        Kind::Wall => tw("WALL 00/00", 3),
-        Kind::Name => tw("CLOUDDESK", 3),
+        Kind::Wall => tw("Wall 00/00", 3),
+        Kind::Name => tw("CloudDesk", 3),
     }
 }
 
@@ -161,14 +161,14 @@ pub unsafe fn draw(c: &Ctx, l: &Layout, cfg: &Config, st: (usize, usize)) {
             Kind::Wall => {
                 let n = wall::list().len();
                 let label = if n == 0 {
-                    "NO WALL".to_string()
+                    "No wall".to_string()
                 } else {
-                    format!("WALL {:02}/{:02}", cfg.wall_index.min(n - 1) + 1, n.min(99))
+                    format!("Wall {:02}/{:02}", cfg.wall_index.min(n - 1) + 1, n.min(99))
                 };
                 text(c, &label, s.x, cy - 10, 3, c.dim);
             }
             Kind::Name => {
-                text(c, "CLOUDDESK", s.x, cy - 10, 3, c.fg);
+                text(c, "CloudDesk", s.x, cy - 10, 3, c.fg);
             }
         }
     }

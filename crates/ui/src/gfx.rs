@@ -1,14 +1,23 @@
 use std::mem::zeroed;
+use std::ptr;
 
-use windows_sys::Win32::Foundation::{HWND, RECT};
+use windows_sys::Win32::Foundation::{HWND, RECT, SIZE};
 use windows_sys::Win32::Graphics::Gdi::{
-    BeginPaint, BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, CreateSolidBrush, DeleteDC,
-    DeleteObject, Ellipse, EndPaint, FillRect, GetStockObject, RoundRect, SelectObject, HBRUSH,
-    HDC, NULL_BRUSH, NULL_PEN, PAINTSTRUCT, SRCCOPY,
+    BeginPaint, BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, CreateFontW, CreateSolidBrush,
+    DeleteDC, DeleteObject, DrawTextW, Ellipse, EndPaint, FillRect, GetStockObject,
+    GetTextExtentPoint32W, RoundRect, SelectObject, SetBkMode, SetTextColor, HBRUSH, HDC,
+    NULL_BRUSH, NULL_PEN, PAINTSTRUCT, SRCCOPY,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::GetClientRect;
 
-use crate::font::glyph;
+use crate::wide;
+
+const DT_VCENTER: u32 = 0x04;
+const DT_SINGLELINE: u32 = 0x20;
+const DT_NOCLIP: u32 = 0x100;
+const DT_NOPREFIX: u32 = 0x800;
+const AA_QUALITY: u32 = 4;
+const BK_TRANSPARENT: i32 = 1;
 
 pub type R = (i32, i32, i32, i32);
 type Rgb = (u8, u8, u8);
@@ -124,6 +133,11 @@ pub struct Ctx {
     pub dim: HBRUSH,
     pub acc: HBRUSH,
     pub dark: HBRUSH,
+    pub rgb: [u32; 5],
+}
+
+fn colorref(t: Rgb) -> u32 {
+    t.0 as u32 | (t.1 as u32) << 8 | (t.2 as u32) << 16
 }
 
 unsafe fn brush(t: Rgb) -> HBRUSH {
@@ -142,8 +156,66 @@ impl Ctx {
     }
 }
 
+fn em(cell: i32) -> i32 {
+    (cell * 11 / 2).max(12)
+}
+
+unsafe fn make_font(px: i32) -> *mut core::ffi::c_void {
+    let face = if px >= 28 {
+        "Segoe UI Variable Display"
+    } else {
+        "Segoe UI Variable Text"
+    };
+    let weight = if px >= 28 { 300 } else { 400 };
+    CreateFontW(
+        -px,
+        0,
+        0,
+        0,
+        weight,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        AA_QUALITY,
+        0,
+        wide(face).as_ptr(),
+    )
+}
+
 pub fn tw(s: &str, cell: i32) -> i32 {
-    s.len() as i32 * 6 * cell
+    let u: Vec<u16> = s.encode_utf16().collect();
+    if u.is_empty() {
+        return 0;
+    }
+    unsafe {
+        let dc = CreateCompatibleDC(ptr::null_mut());
+        if dc.is_null() {
+            return u.len() as i32 * em(cell) / 2;
+        }
+        let font = make_font(em(cell));
+        let old = SelectObject(dc, font);
+        let mut sz: SIZE = zeroed();
+        let ok = GetTextExtentPoint32W(dc, u.as_ptr(), u.len() as i32, &mut sz);
+        SelectObject(dc, old);
+        DeleteObject(font);
+        DeleteDC(dc);
+        if ok == 0 {
+            u.len() as i32 * em(cell) / 2
+        } else {
+            sz.cx
+        }
+    }
+}
+
+fn color_of(c: &Ctx, b: HBRUSH) -> u32 {
+    let all = [c.bg, c.fg, c.dim, c.acc, c.dark];
+    all.iter()
+        .position(|x| *x == b)
+        .map(|i| c.rgb[i])
+        .unwrap_or(c.rgb[1])
 }
 
 pub unsafe fn dot(c: &Ctx, b: HBRUSH, cx: i32, cy: i32, r: i32) {
@@ -152,30 +224,33 @@ pub unsafe fn dot(c: &Ctx, b: HBRUSH, cx: i32, cy: i32, r: i32) {
 }
 
 pub unsafe fn text(c: &Ctx, s: &str, x: i32, y: i32, cell: i32, b: HBRUSH) {
-    let r = (cell * 4 / 10).max(1);
-    for (i, ch) in s.chars().enumerate() {
-        for (row, bits) in glyph(ch).iter().enumerate() {
-            for col in 0..5 {
-                if bits & (0x10 >> col) != 0 {
-                    let cx = x + i as i32 * 6 * cell + col * cell + cell / 2;
-                    let cy = y + row as i32 * cell + cell / 2;
-                    dot(c, b, cx, cy, r);
-                }
-            }
-        }
+    let u: Vec<u16> = s.encode_utf16().collect();
+    if u.is_empty() {
+        return;
     }
+    let font = make_font(c.s(em(cell)));
+    let old = SelectObject(c.dc, font);
+    SetBkMode(c.dc, BK_TRANSPARENT);
+    SetTextColor(c.dc, color_of(c, b));
+    let mut rc = RECT {
+        left: c.s(x),
+        top: c.s(y),
+        right: c.s(x + 2400),
+        bottom: c.s(y + 7 * cell),
+    };
+    DrawTextW(
+        c.dc,
+        u.as_ptr(),
+        u.len() as i32,
+        &mut rc,
+        DT_VCENTER | DT_SINGLELINE | DT_NOCLIP | DT_NOPREFIX,
+    );
+    SelectObject(c.dc, old);
+    DeleteObject(font);
 }
 
 pub unsafe fn title(c: &Ctx, word: &str, x: i32, y: i32, cell: i32) {
     text(c, word, x, y, cell, c.fg);
-    let end = x + tw(word, cell);
-    dot(
-        c,
-        c.acc,
-        end - cell / 2,
-        y + 6 * cell + cell / 2,
-        (cell * 4 / 10).max(2),
-    );
 }
 
 pub unsafe fn pill(c: &Ctx, x: i32, y: i32, w: i32, h: i32, b: HBRUSH) {
@@ -218,6 +293,13 @@ pub unsafe fn paint(hwnd: HWND, scale: i32, pal: &Palette, f: impl FnOnce(&Ctx, 
         dim: brush(pal.dim),
         acc: brush(pal.acc),
         dark: brush(pal.dark),
+        rgb: [
+            colorref(pal.bg),
+            colorref(pal.fg),
+            colorref(pal.dim),
+            colorref(pal.acc),
+            colorref(pal.dark),
+        ],
     };
     SelectObject(mem, GetStockObject(NULL_PEN));
     FillRect(mem, &rc, c.bg);
@@ -229,4 +311,16 @@ pub unsafe fn paint(hwnd: HWND, scale: i32, pal: &Palette, f: impl FnOnce(&Ctx, 
     DeleteObject(bmp);
     DeleteDC(mem);
     EndPaint(hwnd, &ps);
+}
+
+pub unsafe fn round(c: &Ctx, x: i32, y: i32, w: i32, h: i32, r: i32, b: HBRUSH) {
+    SelectObject(c.dc, b);
+    RoundRect(c.dc, c.s(x), c.s(y), c.s(x + w), c.s(y + h), c.s(r), c.s(r));
+}
+
+pub unsafe fn fill(c: &Ctx, x: i32, y: i32, w: i32, h: i32, r: i32, t: (u8, u8, u8)) {
+    let b = brush(t);
+    round(c, x, y, w, h, r, b);
+    SelectObject(c.dc, GetStockObject(NULL_BRUSH));
+    DeleteObject(b);
 }
